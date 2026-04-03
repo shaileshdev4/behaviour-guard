@@ -165,8 +165,8 @@ def compute_feature_vector(
     digraphs = extract_digraph_latencies(keystrokes)
     vels     = extract_mouse_velocities(mouse_events)
 
-    # Need at least 5 keystrokes for a meaningful window
-    if len(dwells) < 5:
+    # Need a few dwell samples per window (3+ keeps demo enrollment from stalling)
+    if len(dwells) < 3:
         return None
 
     current_pages  = [e.get("to", "") for e in nav_events]

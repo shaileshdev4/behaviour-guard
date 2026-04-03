@@ -1,310 +1,394 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, ResponsiveContainer
 } from 'recharts'
 import { getAdminSessions } from '@/lib/api'
 
-interface SessionData {
-  session_id:   string
-  user_id:      string
-  score:        number
-  state:        string
-  phase:        string
-  window_count: number
-  elapsed_min:  number
+interface S  { session_id: string; user_id: string; score: number; state: string; phase: string; window_count: number; elapsed_min: number }
+interface Pt { window: number; score: number; state: string }
+interface Al { time: string; state: string; score: number; window: number }
+
+const SC = (s: string) => ({ green: '#047857', yellow: '#B45309', red: '#B91C1C' }[s] ?? '#1E3A8A')
+
+const badge = (s: string) => {
+  const m: Record<string, { bg: string; color: string; border: string }> = {
+    green:  { bg: 'var(--green-bg)', color: 'var(--green)', border: 'var(--green-border)' },
+    yellow: { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
+    red:    { bg: 'var(--red-bg)', color: 'var(--red)', border: 'var(--red-border)' },
+  }
+  return m[s] ?? { bg: 'var(--primary-light)', color: 'var(--primary)', border: 'var(--border2)' }
 }
 
-interface ScorePoint {
-  window: number
-  score:  number
-  state:  string
-}
-
-interface AlertEntry {
-  time:    string
-  state:   string
-  score:   number
-  window:  number
-}
-
-// Colour helpers
-const stateColor = (state: string) => ({
-  green:  '#22c55e',
-  yellow: '#f59e0b',
-  red:    '#ef4444',
-}[state] ?? '#94a3b8')
-
-const stateBadge = (state: string) => ({
-  green:  'bg-green-500/20 text-green-400',
-  yellow: 'bg-yellow-500/20 text-yellow-400',
-  red:    'bg-red-500/20 text-red-400',
-}[state] ?? 'bg-slate-700 text-slate-400')
-
-// Custom dot: green = invisible, yellow/red = coloured
-const CustomDot = (props: any) => {
+const CustomDot = (props: { cx?: number; cy?: number; payload?: { state?: string } }) => {
   const { cx, cy, payload } = props
-  if (payload.state === 'green') return null
-  return (
-    <circle
-      cx={cx} cy={cy} r={5}
-      fill={stateColor(payload.state)}
-      stroke="#0f172a" strokeWidth={2}
-    />
-  )
+  if (!payload || payload.state === 'green') return null
+  return <circle cx={cx} cy={cy} r={4} fill={SC(payload.state ?? '')} stroke="#FFFFFF" strokeWidth={2} />
 }
 
 export default function SecurityDashboard() {
-  const [sessions, setSessions]       = useState<SessionData[]>([])
-  const [scoreHistory, setHistory]    = useState<ScorePoint[]>([])
-  const [alerts, setAlerts]           = useState<AlertEntry[]>([])
-  const [activeSession, setActive]    = useState<string | null>(null)
-  const prevScores = useRef<Record<string, number>>({})
+  const [sessions, setSessions] = useState<S[]>([])
+  const [history,  setHistory]  = useState<Pt[]>([])
+  const [alerts,   setAlerts]   = useState<Al[]>([])
+  const [active,   setActive]   = useState<string | null>(null)
+  const prev = useRef<Record<string, number>>({})
 
-  // Poll admin sessions every 3 seconds
   useEffect(() => {
     const poll = async () => {
       try {
         const data = await getAdminSessions()
-        const list: SessionData[] = data.sessions ?? []
+        const list: S[] = data.sessions ?? []
         setSessions(list)
-
-        // Auto-select first session
-        if (list.length > 0 && !activeSession) {
-          setActive(list[0].session_id)
-        }
-
-        // Track score history for the active (first) session
-        const target = activeSession
-          ? list.find(s => s.session_id === activeSession)
-          : list[0]
-
-        if (target) {
-          const prev = prevScores.current[target.session_id]
-          if (prev !== target.score) {
-            prevScores.current[target.session_id] = target.score
-
-            setHistory(h => {
-              const next = [...h, {
-                window: target.window_count,
-                score:  target.score,
-                state:  target.state,
-              }].slice(-40)           // keep last 40 points
-              return next
-            })
-
-            // Log alert if not green
-            if (target.state !== 'green') {
-              setAlerts(a => [{
-                time:   new Date().toLocaleTimeString(),
-                state:  target.state,
-                score:  target.score,
-                window: target.window_count,
-              }, ...a].slice(0, 20))
-            }
+        if (list.length > 0 && !active) setActive(list[0].session_id)
+        const t = active ? list.find(s => s.session_id === active) : list[0]
+        if (t && prev.current[t.session_id] !== t.score) {
+          prev.current[t.session_id] = t.score
+          setHistory(h => [...h, { window: t.window_count, score: t.score, state: t.state }].slice(-40))
+          if (t.state !== 'green') {
+            setAlerts(a => [{
+              time: new Date().toLocaleTimeString(), state: t.state,
+              score: t.score, window: t.window_count
+            }, ...a].slice(0, 15))
           }
         }
-      } catch { /* backend might be warming up */ }
+      } catch { /* backend offline */ }
     }
-
     poll()
     const id = setInterval(poll, 3000)
     return () => clearInterval(id)
-  }, [activeSession])
+  }, [active])
 
-  const focused = sessions.find(s => s.session_id === activeSession) ?? sessions[0]
+  const focused = sessions.find(s => s.session_id === active) ?? sessions[0]
+
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    boxShadow: '0 1px 3px rgba(12, 26, 58, 0.06)',
+  }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-4">
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      color: 'var(--text)',
+      fontFamily: 'Figtree, sans-serif',
+    }}>
 
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            🛡️ BehaviorGuard — Security Dashboard
-          </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Real-time continuous authentication monitor
-          </p>
+      <header style={{
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--border)',
+        padding: '0 24px',
+        height: 56,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        boxShadow: '0 1px 0 rgba(12, 26, 58, 0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            background: 'var(--primary)',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: 15,
+            letterSpacing: '-0.02em',
+          }}>
+            B
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>BehaviorGuard</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', letterSpacing: '0.06em' }}>
+              SECURITY CONSOLE
+            </span>
+          </div>
+          <div style={{
+            padding: '4px 12px',
+            borderRadius: 6,
+            background: 'var(--green-bg)',
+            border: '1px solid var(--green-border)',
+            fontSize: 11,
+            fontWeight: 700,
+            color: 'var(--green)',
+          }}>
+            LIVE
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-green-400 text-sm">Live</span>
-          <span className="text-slate-600 text-sm ml-2">
-            {sessions.length} active session{sessions.length !== 1 ? 's' : ''}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 4, background: '#10B981', boxShadow: '0 0 0 2px rgba(16,185,129,0.25)' }} />
+          <span style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 500 }}>
+            {sessions.length} session{sessions.length !== 1 ? 's' : ''} monitored
           </span>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+        <h1 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
+          Active Sessions
+        </h1>
 
-        {/* ── Left column: sessions list ── */}
-        <div className="xl:col-span-1 space-y-3">
-          <h2 className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
-            Active Sessions
-          </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20 }}>
 
-          {sessions.length === 0 && (
-            <div className="bg-slate-800 rounded-xl p-4 text-slate-500 text-sm border border-slate-700">
-              No active sessions. Log in to the banking app.
-            </div>
-          )}
-
-          {sessions.map(s => (
-            <button
-              key={s.session_id}
-              onClick={() => { setActive(s.session_id); setHistory([]) }}
-              className={`w-full text-left bg-slate-800 rounded-xl p-4 border transition-all ${
-                activeSession === s.session_id
-                  ? 'border-blue-500'
-                  : 'border-slate-700 hover:border-slate-500'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-white text-sm font-medium">{s.user_id}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${stateBadge(s.state)}`}>
-                  {s.state.toUpperCase()}
-                </span>
+          {/* Sessions list */}
+          <div>
+            {sessions.length === 0 && (
+              <div style={{ ...cardStyle, padding: 16, fontSize: 13, color: 'var(--text2)' }}>
+                No active sessions. Open the banking app and log in.
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-xs">{s.phase}</span>
-                <span className="text-white text-lg font-bold">
-                  {s.score.toFixed(0)}
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${s.score}%`,
-                    background: stateColor(s.state)
-                  }}
-                />
-              </div>
-              <div className="text-slate-600 text-xs mt-1.5">
-                {s.window_count} windows · {s.elapsed_min.toFixed(1)} min
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* ── Right columns: charts + alerts ── */}
-        <div className="xl:col-span-3 space-y-4">
-
-          {/* Score overview cards */}
-          {focused && (
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Trust Score',   value: `${focused.score.toFixed(0)}/100`, color: stateColor(focused.state) },
-                { label: 'Session State', value: focused.state.toUpperCase(),       color: stateColor(focused.state) },
-                { label: 'Windows Scored',value: focused.window_count.toString(),   color: '#60a5fa' },
-              ].map(card => (
-                <div key={card.label}
-                     className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                  <p className="text-slate-500 text-xs mb-1">{card.label}</p>
-                  <p className="text-xl font-bold" style={{ color: card.color }}>
-                    {card.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Score timeline chart */}
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <h2 className="text-white font-semibold mb-4">
-              Trust Score Timeline
-              <span className="text-slate-500 text-xs font-normal ml-2">
-                (updates every 10 seconds)
-              </span>
-            </h2>
-
-            {scoreHistory.length < 2 ? (
-              <div className="h-48 flex items-center justify-center text-slate-600 text-sm">
-                Waiting for behavioral data...
-                <br />
-                Type in the banking app transfer form.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={scoreHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis
-                    dataKey="window"
-                    stroke="#475569"
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    label={{ value: 'Window', position: 'insideBottom',
-                             offset: -2, fill: '#475569', fontSize: 11 }}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    stroke="#475569"
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                  />
-                  <Tooltip
-                    contentStyle={{ background: '#1e293b', border: '1px solid #334155',
-                                    borderRadius: 8, color: '#f1f5f9' }}
-                    formatter={(v: any, _: any, props: any) => [
-                      `${Number(v).toFixed(1)}`,
-                      `Score (${props.payload?.state ?? ''})`
-                    ]}
-                  />
-                  {/* Zone reference lines */}
-                  <ReferenceLine y={55} stroke="#22c55e" strokeDasharray="4 4"
-                                 label={{ value: 'GREEN', fill: '#22c55e', fontSize: 10 }} />
-                  <ReferenceLine y={28} stroke="#f59e0b" strokeDasharray="4 4"
-                                 label={{ value: 'YELLOW', fill: '#f59e0b', fontSize: 10 }} />
-
-                  <Line
-                    type="monotone"
-                    dataKey="score"
-                    stroke="#60a5fa"
-                    strokeWidth={2.5}
-                    dot={<CustomDot />}
-                    activeDot={{ r: 6, fill: '#60a5fa' }}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
             )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {sessions.map(s => {
+                const b = badge(s.state)
+                const isActive = active === s.session_id
+                return (
+                  <button
+                    key={s.session_id}
+                    onClick={() => { setActive(s.session_id); setHistory([]) }}
+                    style={{
+                      ...cardStyle,
+                      padding: 16,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      border: `1px solid ${isActive ? 'var(--primary-mid)' : 'var(--border)'}`,
+                      background: isActive ? 'var(--primary-light)' : 'var(--surface)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.user_id}</span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 8,
+                        background: b.bg,
+                        color: b.color,
+                        border: `1px solid ${b.border}`,
+                      }}>
+                        {s.state.toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{s.phase}</span>
+                      <span style={{
+                        fontSize: 28,
+                        fontWeight: 800,
+                        color: SC(s.state),
+                        fontFamily: 'ui-monospace, monospace',
+                        lineHeight: 1,
+                      }}>
+                        {s.score.toFixed(0)}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        borderRadius: 2,
+                        width: `${s.score}%`,
+                        background: SC(s.state),
+                        transition: 'width 0.5s',
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8, fontFamily: 'ui-monospace, monospace' }}>
+                      {s.window_count} windows · {s.elapsed_min.toFixed(1)} min
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Alert log */}
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
-            <h2 className="text-white font-semibold mb-4">
-              Alert Log
-              <span className="text-slate-500 text-xs font-normal ml-2">
-                non-green events only
-              </span>
-            </h2>
+          {/* Main panel */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {alerts.length === 0 ? (
-              <p className="text-slate-600 text-sm">No alerts yet. Session is clean.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {alerts.map((a, i) => (
-                  <div key={i}
-                       className="flex items-center justify-between py-2 px-3
-                                  rounded-lg bg-slate-700/40">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stateBadge(a.state)}`}>
-                        {a.state.toUpperCase()}
-                      </span>
-                      <span className="text-slate-400 text-xs">Window {a.window}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-white text-sm font-mono">
-                        {a.score.toFixed(1)}
-                      </span>
-                      <span className="text-slate-600 text-xs">{a.time}</span>
-                    </div>
+            {focused && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                {[
+                  { label: 'Trust Score',  value: `${focused.score.toFixed(0)}/100`, color: SC(focused.state) },
+                  { label: 'Auth State',   value: focused.state.toUpperCase(),        color: SC(focused.state) },
+                  { label: 'Windows',      value: String(focused.window_count),       color: 'var(--primary-mid)' },
+                  { label: 'Alerts',       value: String(alerts.length),              color: alerts.length > 0 ? 'var(--red)' : 'var(--green)' },
+                ].map((c) => (
+                  <div key={c.label} style={{ ...cardStyle, padding: '16px 18px' }}>
+                    <p style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--text3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      marginBottom: 8,
+                    }}>
+                      {c.label}
+                    </p>
+                    <p style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      color: c.color,
+                      fontFamily: 'ui-monospace, monospace',
+                      letterSpacing: '-0.02em',
+                    }}>
+                      {c.value}
+                    </p>
                   </div>
                 ))}
               </div>
             )}
-          </div>
 
+            {/* Chart */}
+            <div style={{ ...cardStyle, padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Trust Score Timeline</h2>
+                  <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.45 }}>
+                    Verified &gt;55 · Monitor 28–55 · Alert &lt;28 · Refreshes every 3s
+                  </p>
+                </div>
+                {focused && (
+                  <p style={{
+                    fontSize: 32,
+                    fontWeight: 800,
+                    color: SC(focused.state),
+                    fontFamily: 'ui-monospace, monospace',
+                    letterSpacing: '-0.04em',
+                  }}>
+                    {focused.score.toFixed(0)}
+                  </p>
+                )}
+              </div>
+
+              {history.length < 2 ? (
+                <div style={{
+                  height: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'var(--surface2)',
+                  borderRadius: 8,
+                  border: '1px dashed var(--border)',
+                }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>Waiting for behavioral data</p>
+                  <p style={{ fontSize: 12, color: 'var(--text3)' }}>Type in the banking app transfer form</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={history}>
+                    <defs>
+                      <linearGradient id="bgTrustGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#2563EB" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="window" stroke="var(--border2)" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
+                    <YAxis domain={[0, 100]} stroke="var(--border2)" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                        color: 'var(--text)',
+                        fontSize: 12,
+                        boxShadow: '0 4px 12px rgba(12,26,58,0.08)',
+                      }}
+                      formatter={(v, _name, item) => {
+                        const val = Number(v ?? 0)
+                        const state = (item?.payload as { state?: string } | undefined)?.state
+                        return [`${val.toFixed(1)} — ${state ?? ''}`, 'Score']
+                      }}
+                    />
+                    <ReferenceLine y={55} stroke="#10B981" strokeDasharray="4 4" strokeOpacity={0.6} />
+                    <ReferenceLine y={28} stroke="#F59E0B" strokeDasharray="4 4" strokeOpacity={0.6} />
+                    <Area
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#2563EB"
+                      strokeWidth={2}
+                      fill="url(#bgTrustGrad)"
+                      dot={<CustomDot />}
+                      activeDot={{ r: 5, fill: '#2563EB' }}
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Alert log */}
+            <div style={{ ...cardStyle, padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Alert Log</h2>
+                <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                  {alerts.length === 0 ? 'No anomalies detected' : `${alerts.length} event${alerts.length > 1 ? 's' : ''}`}
+                </span>
+              </div>
+
+              {alerts.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '14px 16px',
+                  background: 'var(--green-bg)',
+                  borderRadius: 8,
+                  border: '1px solid var(--green-border)',
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 4, background: '#10B981', flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
+                    Session is clean — no behavioral anomalies flagged.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                  {alerts.map((a, i) => {
+                    const ab = badge(a.state)
+                    return (
+                      <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        background: 'var(--surface2)',
+                        border: '1px solid var(--border)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: ab.bg,
+                            color: ab.color,
+                            border: `1px solid ${ab.border}`,
+                          }}>
+                            {a.state.toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--text2)' }}>Window {a.window}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: ab.color, fontFamily: 'ui-monospace, monospace' }}>
+                            {a.score.toFixed(1)}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'ui-monospace, monospace' }}>{a.time}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

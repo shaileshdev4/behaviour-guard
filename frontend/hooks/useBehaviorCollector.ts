@@ -105,8 +105,8 @@ export function useBehaviorCollector() {
     document.addEventListener('keyup',   onKeyUp)
     document.addEventListener('mousemove', onMouseMove)
 
-    // Flush every 10 seconds
-    const interval = setInterval(flush, 10_000)
+    // Flush often enough that enrollment can finish while the user banks (was 10s).
+    const interval = setInterval(flush, 5_000)
 
     return () => {
       document.removeEventListener('keydown', onKeyDown)
