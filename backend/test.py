@@ -1,12 +1,13 @@
 
-from core.scorer import load_population_model
+from core.scorer import load_all_models
 from core.session_manager import create_session
 from core.response_engine import process_window
 import numpy as np
 
-load_population_model()
+load_all_models()
 
-session = create_session('USR_001', 'desktop')
+# Local smoke test user id (no DB); not a login account.
+session = create_session('00000000-0000-0000-0000-000000000001', 'desktop')
 
 # Simulate 10 enrollment windows (normal user typing)
 def make_keys(base_dwell=75, base_flight=70):

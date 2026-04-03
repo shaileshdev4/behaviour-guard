@@ -65,7 +65,7 @@ export default function SecurityOverlay() {
                 Identity Verification Required
               </h2>
               <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 3 }}>
-                BehaviorGuard detected unusual behavioral patterns in this session
+                Imprint detected unusual behavioral patterns in this session
               </p>
             </div>
           </div>

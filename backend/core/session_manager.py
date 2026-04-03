@@ -2,7 +2,7 @@ import uuid
 import time
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 from enum import Enum
 
 
@@ -44,10 +44,24 @@ class Session:
     scaler:         object       = None
     baseline_means: Optional[np.ndarray] = None
 
+    # Cohort GMM (assigned from mean dwell using models/cohort_config.json)
+    cohort_id: Optional[str] = None
+
+    # Last raw tier scores for API / dashboard (population, cohort, individual)
+    last_tier_scores: Optional[dict[str, Any]] = None
+
+    # Active-phase windows used for trust_day ramp (notebook fusion schedule)
+    active_scoring_windows: int = 0
+
+    # Cumulative active windows from previous sessions (loaded from DB)
+    lifetime_windows_prior: int = 0
+
     def elapsed_minutes(self) -> float:
         return (time.time() - self.created_at) / 60
 
     def enrollment_progress(self) -> int:
+        if self.phase == Phase.ACTIVE:
+            return 100
         return min(100, int(len(self.enrollment_vectors) / self.enrollment_target * 100))
 
     def add_score(self, score: float):

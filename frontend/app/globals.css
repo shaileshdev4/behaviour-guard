@@ -1,72 +1,196 @@
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg:            #EEF2F7;
-  --surface:       #FFFFFF;
-  --surface2:      #F5F8FC;
-  --border:        #DDE3EE;
-  --border2:       #C9D4E8;
-  --primary:       #1E3A8A;
-  --primary-mid:   #2563EB;
-  --primary-light: #EFF6FF;
-  --text:          #0C1A3A;
-  --text2:         #5A6A85;
-  --text3:         #9AABBD;
-  --green:         #047857;
-  --green-bg:      #ECFDF5;
-  --green-border:  #A7F3D0;
-  --red:           #B91C1C;
-  --red-bg:        #FEF2F2;
-  --red-border:    #FECACA;
-  --yellow:        #92400E;
-  --yellow-bg:     #FFFBEB;
-  --yellow-border: #FDE68A;
+    /* Imprint brand */
+    --bg: #F7F9FF;
+    --bg2: #EEF2FF;
+    --surface: #FFFFFF;
+    --surface2: #F4F6FE;
+    --border: #E2E8F8;
+    --border2: #C7D2F0;
+
+    /* Primary — deep indigo */
+    --primary: #1B2059;
+    --primary-mid: #2D3A8C;
+    --primary-light: #EEF2FF;
+
+    /* Accent — electric blue */
+    --accent: #4361EE;
+    --accent-light: #EEF2FF;
+
+    /* Cyan — data elements */
+    --cyan: #06B6D4;
+    --cyan-light: #ECFEFF;
+
+    /* Semantic */
+    --green: #047857;
+    --green-bg: #ECFDF5;
+    --green-border: #A7F3D0;
+    --red: #B91C1C;
+    --red-bg: #FEF2F2;
+    --red-border: #FECACA;
+    --yellow: #92400E;
+    --yellow-bg: #FFFBEB;
+    --yellow-border: #FDE68A;
+
+    /* Text */
+    --text: #0F1229;
+    --text2: #4A5580;
+    --text3: #8B96C0;
+
+    /* Fonts */
+    --font-display: 'Cormorant Garant', Georgia, serif;
+    --font-body: 'Sora', system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Courier New', monospace;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Figtree', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 15px;
+    line-height: 1.6;
 }
 
-.mono {
-  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
-  letter-spacing: -0.02em;
+h1,
+h2,
+h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
 }
 
-input, button, select, textarea {
-  font-family: 'Figtree', sans-serif;
+input,
+button,
+select,
+textarea {
+    font-family: var(--font-body);
 }
 
 input:focus {
-  outline: none;
-  border-color: var(--primary-mid) !important;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.12) !important;
+    outline: none;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.12) !important;
 }
 
-/* Card shadow system */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(12,26,58,0.06), 0 1px 2px rgba(12,26,58,0.04);
+.mono {
+    font-family: var(--font-mono);
 }
 
-.card-lg {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 4px 6px rgba(12,26,58,0.05), 0 1px 3px rgba(12,26,58,0.06);
+/* Shadow system */
+.shadow-card {
+    box-shadow: 0 1px 3px rgba(15, 18, 41, 0.06), 0 1px 2px rgba(15, 18, 41, 0.04);
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--surface2); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.shadow-card-md {
+    box-shadow: 0 4px 12px rgba(15, 18, 41, 0.08), 0 1px 3px rgba(15, 18, 41, 0.05);
+}
+
+.shadow-card-lg {
+    box-shadow: 0 8px 24px rgba(15, 18, 41, 0.1), 0 2px 6px rgba(15, 18, 41, 0.06);
+}
+
+.shadow-primary {
+    box-shadow: 0 6px 20px rgba(67, 97, 238, 0.35);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--surface2);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 3px;
+}
+
+/* Animations */
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: scale(0.85);
+    }
+}
+
+/* Hero ambient rings — opacity pulse (keeps inline translate centering) */
+@keyframes hero-ring-pulse {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 0.95;
+    }
+}
+
+@keyframes score-tick {
+    0% {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes bar-fill {
+    from {
+        width: 0;
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -400px 0;
+    }
+
+    100% {
+        background-position: 400px 0;
+    }
+}

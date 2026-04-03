@@ -1,12 +1,20 @@
 import numpy as np
 from core.session_manager import Session, State, Phase
 from core.scorer import (
-    score_population, score_individual,
-    train_individual_model, fuse_scores, apply_ema,
-    context_risk_multiplier
+    assign_cohort_id,
+    score_population,
+    score_cohort,
+    score_individual,
+    train_individual_model,
+    fuse_scores,
+    apply_ema,
+    context_risk_multiplier,
+    trust_day_for_total_active,
 )
 from core.feature_extractor import compute_feature_vector
 from datetime import datetime
+
+from db.profile_store import persist_bg_session_profile
 
 
 # ── Thresholds ─────────────────────────────────────────────────────────────────
@@ -182,7 +190,7 @@ def process_window(
     context:      dict = None,
 ) -> dict:
     """
-    Called every 10 seconds with a new batch of behavioral events.
+    Called each flush interval (~5s) with a new batch of behavioral events.
     1. Extract feature vector
     2. Enrollment or scoring
     3. State transition
@@ -211,9 +219,25 @@ def process_window(
         session.nav_history.append(e.get("to", ""))
     session.nav_history = session.nav_history[-20:]
 
+    # Assign cohort from mean dwell (feature 0) once
+    if session.cohort_id is None:
+        session.cohort_id = assign_cohort_id(float(vector[0]))
+
+    s_pop = score_population(vector)
+    s_coh = score_cohort(vector, session.cohort_id)
+
     # ── Enrollment phase ──
     if session.phase == Phase.ENROLLING:
         session.enrollment_vectors.append(vector.tolist())
+
+        td = trust_day_for_total_active(0, enrolling=True)
+        session.last_tier_scores = {
+            "population": round(s_pop, 4),
+            "cohort": None if s_coh is None else round(s_coh, 4),
+            "individual": None,
+            "trust_day": td,
+            "cohort_id": session.cohort_id,
+        }
 
         if len(session.enrollment_vectors) >= session.enrollment_target:
             # Train individual model
@@ -222,35 +246,50 @@ def process_window(
             )
             # Store baseline means for explainability
             session.baseline_means = np.mean(
-                session.enrollment_vectors, axis=0
-            )
+                np.array(session.enrollment_vectors, dtype=np.float32),
+                axis=0,
+            ).astype(np.float32)
             session.phase = Phase.ACTIVE
             print(f"[engine] Session {session.session_id[:8]} -> ACTIVE")
+            if persist_bg_session_profile(session):
+                print(f"[engine] Session {session.session_id[:8]} profile written to DB")
 
         return _build_response(session, explanation=None)
 
-    # ── Active scoring phase ──
-    s_pop = score_population(vector)
+    # ── Active scoring phase (3-tier fusion: SVM + GMM + Isolation Forest) ──
+    session.active_scoring_windows += 1
+    total_active = session.lifetime_windows_prior + session.active_scoring_windows
+    trust_day = trust_day_for_total_active(total_active, enrolling=False)
 
-    s_ind = score_individual(session.model, session.scaler, vector) \
-            if session.model else s_pop
+    s_ind = (
+        score_individual(session.model, session.scaler, vector)
+        if session.model
+        else None
+    )
 
-    # Context multiplier (risky actions need higher confidence)
     ctx_mult = context_risk_multiplier(
         action=context.get("action", "browse"),
         amount=context.get("amount", 0),
         is_new_beneficiary=context.get("is_new_beneficiary", False),
-        hour=datetime.now().hour
+        hour=datetime.now().hour,
     )
 
-    raw_score = fuse_scores(s_pop, s_ind, weight_day=1, context_mult=ctx_mult)
+    raw_score = fuse_scores(s_pop, s_coh, s_ind, trust_day, context_mult=ctx_mult)
+
+    session.last_tier_scores = {
+        "population": round(s_pop, 4),
+        "cohort": None if s_coh is None else round(s_coh, 4),
+        "individual": None if s_ind is None else round(s_ind, 4),
+        "trust_day": trust_day,
+        "cohort_id": session.cohort_id,
+    }
 
     # EMA smoothing
     session.current_score = apply_ema(session.current_score, raw_score, alpha=0.3)
     session.add_score(session.current_score)
 
     # State transition
-    new_state  = determine_state(session.current_score, session)
+    new_state = determine_state(session.current_score, session)
     session.state = new_state
     session.add_state(new_state)
 
@@ -271,17 +310,10 @@ def _build_response(session: Session, explanation) -> dict:
         "phase":               session.phase.value,
         "enrollment_progress": session.enrollment_progress(),
         "window_count":        session.window_count,
+        "cohort_id":           session.cohort_id,
         "action":              action_data["action"],
         "restrict":            action_data["restrict"],
         "ui":                  action_data["ui"],
         "explanation":         explanation,
-        "tier_scores": {
-            "population": round(
-                score_population(
-                    np.array(session.enrollment_vectors[-1]
-                             if session.enrollment_vectors else [0]*18,
-                             dtype=np.float32)
-                ), 3
-            ) if session.enrollment_vectors else None,
-        }
+        "tier_scores":         session.last_tier_scores,
     }

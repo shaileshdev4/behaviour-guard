@@ -1,41 +1,58 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createSession } from '@/lib/api'
+import { createSession, loginUser } from '@/lib/api'
+import { setAuth } from '@/lib/auth'
 import { useSessionStore } from '@/lib/store'
 
-const DEMO_USERS = [
-  { id: 'USR_001', name: 'Rahul Sharma',  account: 'SB •••• 4821', type: 'Savings Account' },
-  { id: 'USR_002', name: 'Priya Mehta',   account: 'SB •••• 3047', type: 'Savings Account' },
-  { id: 'USR_003', name: 'Amit Verma',    account: 'CA •••• 7293', type: 'Current Account' },
-]
-
 export default function LoginPage() {
-  const router      = useRouter()
-  const setSession  = useSessionStore((s) => s.setSession)
+  const router = useRouter()
+  const setSession = useSessionStore((s) => s.setSession)
   const updateScore = useSessionStore((s) => s.updateScore)
 
-  const [selected, setSelected] = useState(DEMO_USERS[0])
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [email, setEmail] = useState('')
+  const [emailPass, setEmailPass] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const finishLogin = (data: Awaited<ReturnType<typeof createSession>>, displayId: string) => {
+    if (!data.session_id) {
+      setError('Server returned an invalid response')
+      return
+    }
+    setSession(data.session_id, displayId)
+    const raw = data.state
+    const state: 'green' | 'yellow' | 'red' =
+      raw === 'yellow' || raw === 'red' ? raw : 'green'
+    const phase: 'enrolling' | 'active' =
+      data.phase === 'active' ? 'active' : 'enrolling'
+    updateScore({
+      phase,
+      state,
+      enrollmentProgress: phase === 'active' ? 100 : 0,
+      cohortId: data.cohort_id ?? null,
+      tierScores: null,
+    })
+    router.push('/banking/dashboard')
+  }
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password.length < 4) { setError('Minimum 4 characters required'); return }
-    setLoading(true); setError('')
+    if (emailPass.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    setLoading(true)
+    setError('')
     try {
-      const data = await createSession(selected.id, 'desktop')
-      if (!data.session_id) { setError('Server returned an invalid response'); return }
-      setSession(data.session_id, selected.id)
-      const raw = data.state
-      const state: 'green' | 'yellow' | 'red' =
-        raw === 'yellow' || raw === 'red' ? raw : 'green'
-      updateScore({ phase: 'enrolling', state, enrollmentProgress: 0 })
-      router.push('/banking/dashboard')
-    } catch {
-      setError('Unable to connect. Ensure the backend is running on port 8000.')
+      const auth = await loginUser(email.trim(), emailPass)
+      setAuth(auth.access_token, auth.user_id, auth.email)
+      const data = await createSession({})
+      finishLogin(data, auth.email)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {
       setLoading(false)
     }
@@ -44,7 +61,6 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: '#EEF2F7' }}>
 
-      {/* Left panel — branding */}
       <div
         className="hidden lg:flex flex-col justify-between"
         style={{
@@ -54,7 +70,6 @@ export default function LoginPage() {
           padding: '48px',
         }}
       >
-        {/* Logo */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <div style={{
@@ -74,7 +89,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Main copy */}
         <div>
           <h2 style={{
             color: '#fff', fontSize: 32, fontWeight: 800,
@@ -83,15 +97,14 @@ export default function LoginPage() {
             Secure banking<br />you can trust.
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, lineHeight: 1.7, marginBottom: 40 }}>
-            Powered by BehaviorGuard — your identity is verified continuously throughout every session, not just at login.
+            Create an account or sign in. Imprint verifies how you type and move the mouse — not what you type.
           </p>
 
-          {/* Trust points */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              ['Continuous Identity Verification', 'Monitors behavior every 10 seconds silently'],
+              ['Continuous Identity Verification', 'Monitors behavior every 5 seconds silently'],
               ['Zero Friction for You', 'Invisible to legitimate users — only alerts on anomalies'],
-              ['DPDPA 2023 Compliant', 'No raw data stored. Privacy by design.'],
+              ['Your profile is saved', 'Returning users skip enrollment when a model exists in the database'],
             ].map(([title, sub]) => (
               <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <div style={{
@@ -99,9 +112,7 @@ export default function LoginPage() {
                   background: 'rgba(255,255,255,0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, color: '#fff', fontWeight: 700
-                }}>
-                  ✓
-                </div>
+                }}>✓</div>
                 <div>
                   <p style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{title}</p>
                   <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 1 }}>{sub}</p>
@@ -116,7 +127,6 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Right panel — form */}
       <div style={{
         flex: 1,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -124,7 +134,6 @@ export default function LoginPage() {
       }}>
         <div style={{ width: '100%', maxWidth: 400 }}>
 
-          {/* Mobile logo */}
           <div className="lg:hidden" style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
@@ -140,138 +149,103 @@ export default function LoginPage() {
             fontSize: 26, fontWeight: 800, color: 'var(--text)',
             letterSpacing: '-0.03em', marginBottom: 6
           }}>
-            Sign in to your account
+            Sign in
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 32 }}>
-            Select a demo profile to continue
+          <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
+            Use the email and password you registered with.
           </p>
 
-          {/* Account selector */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Account
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {DEMO_USERS.map((u) => {
-                const active = selected.id === u.id
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => setSelected(u)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '12px 16px', borderRadius: 10, textAlign: 'left',
-                      background: active ? 'var(--primary-light)' : 'var(--surface)',
-                      border: `1.5px solid ${active ? 'var(--primary-mid)' : 'var(--border)'}`,
-                      cursor: 'pointer', transition: 'all 0.15s',
-                      boxShadow: active ? '0 0 0 3px rgba(37,99,235,0.08)' : 'none'
-                    }}
-                  >
-                    {/* Avatar */}
-                    <div style={{
-                      width: 38, height: 38, borderRadius: 19, flexShrink: 0,
-                      background: active ? 'var(--primary)' : '#C7D2FE',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 14, fontWeight: 700,
-                      color: active ? '#fff' : 'var(--primary)',
-                    }}>
-                      {u.name.charAt(0)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3 }}>
-                        {u.name}
-                      </p>
-                      <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 1 }}>
-                        {u.type} · {u.account}
-                      </p>
-                    </div>
-                    {active && (
-                      <div style={{
-                        width: 18, height: 18, borderRadius: 9,
-                        background: 'var(--primary-mid)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, color: '#fff', fontWeight: 700, flexShrink: 0
-                      }}>
-                        ✓
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
+          <form onSubmit={handleEmailLogin}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                style={inputStyle}
+              />
             </div>
-          </div>
-
-          {/* Password */}
-          <form onSubmit={handleLogin}>
             <div style={{ marginBottom: 20 }}>
-              <label style={{
-                display: 'block', fontSize: 12, fontWeight: 600,
-                color: 'var(--text2)', marginBottom: 8,
-                textTransform: 'uppercase', letterSpacing: '0.06em'
-              }}>
-                Password
-              </label>
+              <label style={labelStyle}>Password</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Type anything — we track how, not what"
-                  style={{
-                    width: '100%', padding: '11px 44px 11px 14px',
-                    borderRadius: 10, fontSize: 14, color: 'var(--text)',
-                    background: 'var(--surface)',
-                    border: '1.5px solid var(--border)',
-                    transition: 'all 0.15s'
-                  }}
+                  autoComplete="current-password"
+                  value={emailPass}
+                  onChange={(e) => setEmailPass(e.target.value)}
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  style={{ ...inputStyle, paddingRight: 52 }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  style={{
-                    position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 11, color: 'var(--text2)', fontWeight: 600
-                  }}
+                  style={togglePassStyle}
                 >
                   {showPass ? 'HIDE' : 'SHOW'}
                 </button>
               </div>
             </div>
-
-            {error && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 8, marginBottom: 16,
-                background: 'var(--red-bg)', border: '1px solid var(--red-border)',
-                fontSize: 13, color: 'var(--red)'
-              }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%', padding: '13px',
-                background: loading ? '#93C5FD' : 'var(--primary)',
-                color: '#fff', border: 'none', borderRadius: 10,
-                fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-                letterSpacing: '-0.01em', transition: 'background 0.15s',
-                boxShadow: loading ? 'none' : '0 4px 14px rgba(30,58,138,0.3)'
-              }}
-            >
-              {loading ? 'Connecting...' : 'Sign In Securely'}
+            {error && <ErrorBox msg={error} />}
+            <button type="submit" disabled={loading} style={submitStyle(loading)}>
+              {loading ? 'Signing in…' : 'Sign in'}
             </button>
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text2)', marginTop: 18 }}>
+              New here?{' '}
+              <Link href="/signup" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                Create an account
+              </Link>
+            </p>
           </form>
 
-          <p style={{
-            textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 24
-          }}>
-            Protected by BehaviorGuard continuous authentication
+          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 24 }}>
+            Protected by Imprint continuous authentication
           </p>
         </div>
       </div>
     </div>
+  )
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 12, fontWeight: 600,
+  color: 'var(--text2)', marginBottom: 8,
+  textTransform: 'uppercase', letterSpacing: '0.06em',
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '11px 14px',
+  borderRadius: 10, fontSize: 14, color: 'var(--text)',
+  background: 'var(--surface)',
+  border: '1.5px solid var(--border)',
+}
+
+const togglePassStyle: React.CSSProperties = {
+  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontSize: 11, color: 'var(--text2)', fontWeight: 600,
+}
+
+function submitStyle(loading: boolean): React.CSSProperties {
+  return {
+    width: '100%', padding: '13px',
+    background: loading ? '#93C5FD' : 'var(--primary)',
+    color: '#fff', border: 'none', borderRadius: 10,
+    fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+    letterSpacing: '-0.01em',
+    boxShadow: loading ? 'none' : '0 4px 14px rgba(30,58,138,0.3)',
+  }
+}
+
+function ErrorBox({ msg }: { msg: string }) {
+  return (
+    <div style={{
+      padding: '10px 14px', borderRadius: 8, marginBottom: 16,
+      background: 'var(--red-bg)', border: '1px solid var(--red-border)',
+      fontSize: 13, color: 'var(--red)',
+    }}>{msg}</div>
   )
 }

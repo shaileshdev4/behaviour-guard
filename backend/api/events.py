@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from core.session_manager import get_session
 from core.response_engine import process_window
+from db.profile_store import maybe_periodic_persist, maybe_periodic_enrollment_persist
 
 router = APIRouter()
 
@@ -59,5 +60,6 @@ def receive_events(batch: EventBatch):
         nav_events=nav,
         context=context,
     )
-
+    maybe_periodic_enrollment_persist(session)
+    maybe_periodic_persist(session)
     return result

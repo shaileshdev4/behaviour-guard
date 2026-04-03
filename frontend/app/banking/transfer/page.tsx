@@ -83,7 +83,7 @@ export default function TransferPage() {
           Fund Transfer
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
-          BehaviorGuard is monitoring this session in real time
+          Imprint is monitoring this session in real time
         </p>
       </div>
 
@@ -242,7 +242,7 @@ export default function TransferPage() {
           {/* Trust score */}
           <div className="card-lg" style={{ padding: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
-              BehaviorGuard Trust Score
+              Imprint Trust Score
             </p>
 
             {/* Score ring area */}

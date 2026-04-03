@@ -165,7 +165,7 @@ def compute_feature_vector(
     digraphs = extract_digraph_latencies(keystrokes)
     vels     = extract_mouse_velocities(mouse_events)
 
-    # Need a few dwell samples per window (3+ keeps demo enrollment from stalling)
+    # Need a few dwell samples per window (3+ keeps enrollment from stalling on sparse input)
     if len(dwells) < 3:
         return None
 

@@ -1,395 +1,245 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer
-} from 'recharts'
-import { getAdminSessions } from '@/lib/api'
+import Link from 'next/link'
+import { useSessionStore } from '@/lib/store'
+import LiveSignalFeed from '@/components/LiveSignalFeed'
+import EnrollmentCard from '@/components/EnrollmentCard'
 
-interface S  { session_id: string; user_id: string; score: number; state: string; phase: string; window_count: number; elapsed_min: number }
-interface Pt { window: number; score: number; state: string }
-interface Al { time: string; state: string; score: number; window: number }
+const TRANSACTIONS = [
+  { name: 'Swiggy Technologies',  ref: 'UPI/240403/123',  amount: '450.00',    credit: false, date: 'Today, 1:23 PM'   },
+  { name: 'Salary — HDFC Corp',   ref: 'NEFT/240402/892', amount: '85,000.00', credit: true,  date: 'Apr 2, 09:00 AM'  },
+  { name: 'Amazon Seller Svcs',   ref: 'UPI/240402/441',  amount: '2,340.00',  credit: false, date: 'Apr 2, 3:14 PM'   },
+  { name: 'Netflix India',        ref: 'ECS/240401/002',  amount: '649.00',    credit: false, date: 'Apr 1, 12:00 AM'  },
+  { name: 'UPI Transfer — Raj',   ref: 'UPI/240331/778',  amount: '5,000.00',  credit: false, date: 'Mar 31, 4:30 PM'  },
+]
 
-const SC = (s: string) => ({ green: '#047857', yellow: '#B45309', red: '#B91C1C' }[s] ?? '#1E3A8A')
-
-const badge = (s: string) => {
-  const m: Record<string, { bg: string; color: string; border: string }> = {
-    green:  { bg: 'var(--green-bg)', color: 'var(--green)', border: 'var(--green-border)' },
-    yellow: { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
-    red:    { bg: 'var(--red-bg)', color: 'var(--red)', border: 'var(--red-border)' },
-  }
-  return m[s] ?? { bg: 'var(--primary-light)', color: 'var(--primary)', border: 'var(--border2)' }
+function tierBar(label: string, sub: string, v: number | null) {
+  const pct = v == null ? 0 : Math.min(100, Math.max(0, Math.round(v * 100)))
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+        <span style={{ fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>
+          {v == null ? '—' : `${pct}%`}
+        </span>
+      </div>
+      <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          borderRadius: 3,
+          background: 'linear-gradient(90deg, #4361EE, #7C9DFF)',
+          transition: 'width 0.35s ease',
+        }} />
+      </div>
+      <p style={{ fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>{sub}</p>
+    </div>
+  )
 }
 
-const CustomDot = (props: { cx?: number; cy?: number; payload?: { state?: string } }) => {
-  const { cx, cy, payload } = props
-  if (!payload || payload.state === 'green') return null
-  return <circle cx={cx} cy={cy} r={4} fill={SC(payload.state ?? '')} stroke="#FFFFFF" strokeWidth={2} />
-}
+export default function Dashboard() {
+  const { score, state, phase, tierScores, cohortId } = useSessionStore()
 
-export default function SecurityDashboard() {
-  const [sessions, setSessions] = useState<S[]>([])
-  const [history,  setHistory]  = useState<Pt[]>([])
-  const [alerts,   setAlerts]   = useState<Al[]>([])
-  const [active,   setActive]   = useState<string | null>(null)
-  const prev = useRef<Record<string, number>>({})
-
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const data = await getAdminSessions()
-        const list: S[] = data.sessions ?? []
-        setSessions(list)
-        if (list.length > 0 && !active) setActive(list[0].session_id)
-        const t = active ? list.find(s => s.session_id === active) : list[0]
-        if (t && prev.current[t.session_id] !== t.score) {
-          prev.current[t.session_id] = t.score
-          setHistory(h => [...h, { window: t.window_count, score: t.score, state: t.state }].slice(-40))
-          if (t.state !== 'green') {
-            setAlerts(a => [{
-              time: new Date().toLocaleTimeString(), state: t.state,
-              score: t.score, window: t.window_count
-            }, ...a].slice(0, 15))
-          }
-        }
-      } catch { /* backend offline */ }
-    }
-    poll()
-    const id = setInterval(poll, 3000)
-    return () => clearInterval(id)
-  }, [active])
-
-  const focused = sessions.find(s => s.session_id === active) ?? sessions[0]
-
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 12,
-    boxShadow: '0 1px 3px rgba(12, 26, 58, 0.06)',
-  }
+  const stateCfg = {
+    green:  { bg: 'var(--green-bg)',  border: 'var(--green-border)',  color: 'var(--green)',  dot: '#10B981', label: 'Identity continuously verified' },
+    yellow: { bg: 'var(--yellow-bg)', border: 'var(--yellow-border)', color: 'var(--yellow)', dot: '#F59E0B', label: 'Behavioral anomaly — monitoring' },
+    red:    { bg: 'var(--red-bg)',    border: 'var(--red-border)',    color: 'var(--red)',    dot: '#EF4444', label: 'Verification required' },
+  }[state] ?? { bg: '#EEF2FF', border: '#C7D2FE', color: '#4361EE', dot: '#4361EE', label: '' }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg)',
-      color: 'var(--text)',
-      fontFamily: 'Figtree, sans-serif',
-    }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
 
-      {/* Header */}
-      <header style={{
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--border)',
-        padding: '0 24px',
-        height: 56,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxShadow: '0 1px 0 rgba(12, 26, 58, 0.04)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Main column */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+        {/* Enrollment card — shows only during enrolling */}
+        <EnrollmentCard />
+
+        {/* ML tiers — population SVM, cohort GMM, individual IF (from backend) */}
+        {tierScores && (
           <div style={{
-            width: 36,
-            height: 36,
-            background: 'var(--primary)',
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: 15,
-            letterSpacing: '-0.02em',
+            background: '#fff', borderRadius: 12, padding: '16px 18px',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(15,18,41,0.05)',
           }}>
-            B
+            <p style={{
+              fontSize: 10, fontWeight: 700, color: 'var(--text2)',
+              textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12,
+            }}>
+              Behavioral models (live)
+            </p>
+            {tierBar('Population', 'One-Class SVM — human vs bot / outlier', tierScores.population)}
+            {tierBar('Cohort', 'Gaussian mixture — typing-speed peer group', tierScores.cohort)}
+            {tierBar('Individual', 'Isolation Forest — your enrolled profile', tierScores.individual)}
+            <p style={{ fontSize: 10, color: 'var(--text3)', marginTop: 10, lineHeight: 1.45 }}>
+              Fusion schedule: <strong style={{ color: 'var(--text2)' }}>day {tierScores.trust_day}</strong>
+              {' · '}
+              Cohort:{' '}
+              <strong style={{ color: 'var(--text2)' }}>
+                {tierScores.cohort_id ?? cohortId ?? 'assigning…'}
+              </strong>
+            </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>BehaviorGuard</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', letterSpacing: '0.06em' }}>
-              SECURITY CONSOLE
-            </span>
-          </div>
+        )}
+
+        {/* Imprint status — shows only when active */}
+        {phase === 'active' && (
           <div style={{
-            padding: '4px 12px',
-            borderRadius: 6,
-            background: 'var(--green-bg)',
-            border: '1px solid var(--green-border)',
-            fontSize: 11,
-            fontWeight: 700,
-            color: 'var(--green)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 18px', borderRadius: 10,
+            background: stateCfg.bg, border: `1px solid ${stateCfg.border}`,
           }}>
-            LIVE
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: '#10B981', boxShadow: '0 0 0 2px rgba(16,185,129,0.25)' }} />
-          <span style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 500 }}>
-            {sessions.length} session{sessions.length !== 1 ? 's' : ''} monitored
-          </span>
-        </div>
-      </header>
-
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-        <h1 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
-          Active Sessions
-        </h1>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20 }}>
-
-          {/* Sessions list */}
-          <div>
-            {sessions.length === 0 && (
-              <div style={{ ...cardStyle, padding: 16, fontSize: 13, color: 'var(--text2)' }}>
-                No active sessions. Open the banking app and log in.
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 7, height: 7, borderRadius: 4, background: stateCfg.dot }} />
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: stateCfg.color }}>
+                  Imprint — {stateCfg.label}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
+                  Your session is verified every 5 seconds. No action needed.
+                </p>
               </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {sessions.map(s => {
-                const b = badge(s.state)
-                const isActive = active === s.session_id
-                return (
-                  <button
-                    key={s.session_id}
-                    onClick={() => { setActive(s.session_id); setHistory([]) }}
-                    style={{
-                      ...cardStyle,
-                      padding: 16,
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      border: `1px solid ${isActive ? 'var(--primary-mid)' : 'var(--border)'}`,
-                      background: isActive ? 'var(--primary-light)' : 'var(--surface)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.user_id}</span>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: 8,
-                        background: b.bg,
-                        color: b.color,
-                        border: `1px solid ${b.border}`,
-                      }}>
-                        {s.state.toUpperCase()}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{s.phase}</span>
-                      <span style={{
-                        fontSize: 28,
-                        fontWeight: 800,
-                        color: SC(s.state),
-                        fontFamily: 'ui-monospace, monospace',
-                        lineHeight: 1,
-                      }}>
-                        {s.score.toFixed(0)}
-                      </span>
-                    </div>
-                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        borderRadius: 2,
-                        width: `${s.score}%`,
-                        background: SC(s.state),
-                        transition: 'width 0.5s',
-                      }} />
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8, fontFamily: 'ui-monospace, monospace' }}>
-                      {s.window_count} windows · {s.elapsed_min.toFixed(1)} min
-                    </p>
-                  </button>
-                )
-              })}
             </div>
+            <p style={{
+              fontSize: 24, fontWeight: 800, fontFamily: 'var(--font-mono)',
+              letterSpacing: '-0.04em', color: stateCfg.color,
+              flexShrink: 0,
+            }}>
+              {score.toFixed(0)}
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)', marginLeft: 2 }}>/100</span>
+            </p>
+          </div>
+        )}
+
+        {/* Account cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{
+            background: 'linear-gradient(140deg, #1B2059 0%, #2D3A8C 60%, #4361EE 100%)',
+            borderRadius: 16, padding: '22px 24px',
+            boxShadow: '0 8px 28px rgba(27,32,89,0.28)',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', bottom: -30, right: -30,
+              width: 120, height: 120, borderRadius: 60,
+              background: 'rgba(255,255,255,0.06)',
+            }} />
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Savings Account
+            </p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3, marginBottom: 18, fontFamily: 'var(--font-mono)' }}>
+              •••• •••• 4821
+            </p>
+            <p style={{
+              fontSize: 28, fontWeight: 800, color: '#fff',
+              fontFamily: 'var(--font-mono)', letterSpacing: '-0.03em',
+            }}>
+              ₹2,34,580.00
+            </p>
+            <p style={{ fontSize: 11, color: '#86EFAC', marginTop: 6 }}>
+              +₹85,000.00 credited today
+            </p>
           </div>
 
-          {/* Main panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: '22px 24px',
+            border: '1px solid var(--border)',
+            boxShadow: '0 4px 12px rgba(15,18,41,0.07)',
+          }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Fixed Deposit
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, marginBottom: 18, fontFamily: 'var(--font-mono)' }}>
+              FD-2024-0093
+            </p>
+            <p style={{
+              fontSize: 28, fontWeight: 800, color: 'var(--text)',
+              fontFamily: 'var(--font-mono)', letterSpacing: '-0.03em',
+            }}>
+              ₹5,00,000.00
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
+              8.25% p.a. · Matures Apr 2025
+            </p>
+          </div>
+        </div>
 
-            {focused && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                {[
-                  { label: 'Trust Score',  value: `${focused.score.toFixed(0)}/100`, color: SC(focused.state) },
-                  { label: 'Auth State',   value: focused.state.toUpperCase(),        color: SC(focused.state) },
-                  { label: 'Windows',      value: String(focused.window_count),       color: 'var(--primary-mid)' },
-                  { label: 'Alerts',       value: String(alerts.length),              color: alerts.length > 0 ? 'var(--red)' : 'var(--green)' },
-                ].map((c) => (
-                  <div key={c.label} style={{ ...cardStyle, padding: '16px 18px' }}>
-                    <p style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--text3)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      marginBottom: 8,
-                    }}>
-                      {c.label}
-                    </p>
-                    <p style={{
-                      fontSize: 22,
-                      fontWeight: 800,
-                      color: c.color,
-                      fontFamily: 'ui-monospace, monospace',
-                      letterSpacing: '-0.02em',
-                    }}>
-                      {c.value}
-                    </p>
-                  </div>
-                ))}
+        {/* Quick actions */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {[
+            { label: 'Fund Transfer', href: '/banking/transfer' },
+            { label: 'Transactions',  href: '/banking/history' },
+            { label: 'Privacy',       href: '/banking/privacy' },
+          ].map((a) => (
+            <Link key={a.label} href={a.href} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '13px 18px', borderRadius: 10, textDecoration: 'none',
+              background: '#fff', border: '1px solid var(--border)',
+              fontSize: 13, fontWeight: 600, color: 'var(--text)',
+              boxShadow: '0 1px 3px rgba(15,18,41,0.05)',
+            }}>
+              {a.label}
+              <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
+            </Link>
+          ))}
+        </div>
+
+        {/* Transactions */}
+        <div style={{
+          background: '#fff', borderRadius: 16, overflow: 'hidden',
+          border: '1px solid var(--border)',
+          boxShadow: '0 2px 8px rgba(15,18,41,0.05)',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '15px 22px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface2)',
+          }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Recent Transactions</h2>
+            <Link href="/banking/history" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>
+              View All
+            </Link>
+          </div>
+
+          {TRANSACTIONS.map((tx, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', padding: '13px 22px', gap: 14,
+              borderBottom: i < TRANSACTIONS.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                background: tx.credit ? 'var(--green-bg)' : 'var(--surface2)',
+                border: `1px solid ${tx.credit ? 'var(--green-border)' : 'var(--border)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 800,
+                color: tx.credit ? 'var(--green)' : 'var(--text2)',
+              }}>
+                {tx.credit ? 'CR' : 'DR'}
               </div>
-            )}
-
-            {/* Chart */}
-            <div style={{ ...cardStyle, padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Trust Score Timeline</h2>
-                  <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.45 }}>
-                    Verified &gt;55 · Monitor 28–55 · Alert &lt;28 · Refreshes every 3s
-                  </p>
-                </div>
-                {focused && (
-                  <p style={{
-                    fontSize: 32,
-                    fontWeight: 800,
-                    color: SC(focused.state),
-                    fontFamily: 'ui-monospace, monospace',
-                    letterSpacing: '-0.04em',
-                  }}>
-                    {focused.score.toFixed(0)}
-                  </p>
-                )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {tx.name}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>
+                  {tx.ref}
+                </p>
               </div>
-
-              {history.length < 2 ? (
-                <div style={{
-                  height: 200,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'var(--surface2)',
-                  borderRadius: 8,
-                  border: '1px dashed var(--border)',
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{
+                  fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', letterSpacing: '-0.02em',
+                  color: tx.credit ? 'var(--green)' : 'var(--text)',
                 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>Waiting for behavioral data</p>
-                  <p style={{ fontSize: 12, color: 'var(--text3)' }}>Type in the banking app transfer form</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={history}>
-                    <defs>
-                      <linearGradient id="bgTrustGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#2563EB" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="window" stroke="var(--border2)" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
-                    <YAxis domain={[0, 100]} stroke="var(--border2)" tick={{ fill: 'var(--text3)', fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                        color: 'var(--text)',
-                        fontSize: 12,
-                        boxShadow: '0 4px 12px rgba(12,26,58,0.08)',
-                      }}
-                      formatter={(v, _name, item) => {
-                        const val = Number(v ?? 0)
-                        const state = (item?.payload as { state?: string } | undefined)?.state
-                        return [`${val.toFixed(1)} — ${state ?? ''}`, 'Score']
-                      }}
-                    />
-                    <ReferenceLine y={55} stroke="#10B981" strokeDasharray="4 4" strokeOpacity={0.6} />
-                    <ReferenceLine y={28} stroke="#F59E0B" strokeDasharray="4 4" strokeOpacity={0.6} />
-                    <Area
-                      type="monotone"
-                      dataKey="score"
-                      stroke="#2563EB"
-                      strokeWidth={2}
-                      fill="url(#bgTrustGrad)"
-                      dot={<CustomDot />}
-                      activeDot={{ r: 5, fill: '#2563EB' }}
-                      isAnimationActive={false}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* Alert log */}
-            <div style={{ ...cardStyle, padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Alert Log</h2>
-                <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-                  {alerts.length === 0 ? 'No anomalies detected' : `${alerts.length} event${alerts.length > 1 ? 's' : ''}`}
-                </span>
+                  {tx.credit ? '+' : '-'}₹{tx.amount}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{tx.date}</p>
               </div>
-
-              {alerts.length === 0 ? (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '14px 16px',
-                  background: 'var(--green-bg)',
-                  borderRadius: 8,
-                  border: '1px solid var(--green-border)',
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 4, background: '#10B981', flexShrink: 0 }} />
-                  <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
-                    Session is clean — no behavioral anomalies flagged.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
-                  {alerts.map((a, i) => {
-                    const ab = badge(a.state)
-                    return (
-                      <div key={i} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px 14px',
-                        borderRadius: 8,
-                        background: 'var(--surface2)',
-                        border: '1px solid var(--border)',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 800,
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            background: ab.bg,
-                            color: ab.color,
-                            border: `1px solid ${ab.border}`,
-                          }}>
-                            {a.state.toUpperCase()}
-                          </span>
-                          <span style={{ fontSize: 12, color: 'var(--text2)' }}>Window {a.window}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                          <span style={{ fontSize: 15, fontWeight: 800, color: ab.color, fontFamily: 'ui-monospace, monospace' }}>
-                            {a.score.toFixed(1)}
-                          </span>
-                          <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'ui-monospace, monospace' }}>{a.time}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-          </div>
+          ))}
         </div>
+      </div>
+
+      {/* Right sidebar — live signals */}
+      <div style={{ position: 'sticky', top: 72 }}>
+        <LiveSignalFeed compact />
       </div>
     </div>
   )
