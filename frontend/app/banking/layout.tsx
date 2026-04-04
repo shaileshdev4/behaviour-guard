@@ -6,6 +6,7 @@ import { useSessionStore } from '@/lib/store'
 import { useBehaviorCollector } from '@/hooks/useBehaviorCollector'
 import SecurityOverlay from '@/components/SecurityOverlay'
 import ScoreIndicator from '@/components/ScoreIndicator'
+import DeviceTrustBanner from '@/components/DeviceTrustBanner'
 import { endBankingSession, getSession } from '@/lib/api'
 import { clearAuth } from '@/lib/auth'
 
@@ -13,6 +14,7 @@ const NAV = [
   { href: '/banking/dashboard', label: 'Dashboard' },
   { href: '/banking/transfer', label: 'Transfer' },
   { href: '/banking/history', label: 'Transactions' },
+  { href: '/banking/settings', label: 'Settings' },
   { href: '/banking/privacy', label: 'Privacy' },
 ]
 
@@ -309,6 +311,8 @@ export default function BankingLayout({ children }: { children: React.ReactNode 
             'linear-gradient(90deg, #3B82F6 0%, #93C5FD 50%, transparent 100%)',
         }}
       />
+
+      <DeviceTrustBanner />
 
       <main
         style={{

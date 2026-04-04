@@ -1,16 +1,32 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useSessionStore } from '@/lib/store'
+import { deleteProfileData } from '@/lib/api'
+import { revokeDeviceFingerprint } from '@/lib/deviceFingerprint'
+import DeviceRecognitionPanel from '@/components/DeviceRecognitionPanel'
 
 export default function PrivacyPage() {
   const { userId, signals } = useSessionStore()
   const [deleted, setDeleted] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDelete = async () => {
-    // In a real system this would call DELETE /api/user/{id}/profile
-    setDeleted(true)
-    setShowConfirm(false)
+    if (!userId) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteProfileData()
+      revokeDeviceFingerprint()
+      setDeleted(true)
+      setShowConfirm(false)
+    } catch {
+      setError('Deletion failed. Try again.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const dataItems = [
@@ -219,6 +235,16 @@ export default function PrivacyPage() {
         ))}
       </div>
 
+      <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, lineHeight: 1.5 }}>
+        Quick toggle is also under{' '}
+        <Link href="/banking/settings" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+          Settings
+        </Link>
+        .
+      </p>
+
+      <DeviceRecognitionPanel />
+
       {/* Consent toggle + delete */}
       <div style={{
         background: '#fff', borderRadius: 16,
@@ -250,13 +276,20 @@ export default function PrivacyPage() {
                 This action is irreversible.
               </p>
 
+              {error && (
+                <p style={{ fontSize: 13, color: '#B91C1C', marginBottom: 12 }}>{error}</p>
+              )}
+
               {!showConfirm ? (
                 <button
-                  onClick={() => setShowConfirm(true)}
+                  type="button"
+                  onClick={() => { setError(null); setShowConfirm(true) }}
+                  disabled={!userId || deleting}
                   style={{
                     padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700,
                     color: '#B91C1C', background: '#FEF2F2',
-                    border: '1.5px solid #FECACA', cursor: 'pointer',
+                    border: '1.5px solid #FECACA', cursor: userId ? 'pointer' : 'not-allowed',
+                    opacity: userId ? 1 : 0.5,
                   }}
                 >
                   Request Profile Deletion
@@ -271,17 +304,22 @@ export default function PrivacyPage() {
                   </p>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button
+                      type="button"
                       onClick={handleDelete}
+                      disabled={deleting}
                       style={{
                         padding: '9px 20px', borderRadius: 9, fontSize: 13, fontWeight: 700,
                         color: '#fff', background: '#B91C1C', border: 'none', cursor: 'pointer',
                         boxShadow: '0 4px 10px rgba(185,28,28,0.25)',
+                        opacity: deleting ? 0.7 : 1,
                       }}
                     >
-                      Yes, delete permanently
+                      {deleting ? 'Deleting…' : 'Yes, delete permanently'}
                     </button>
                     <button
-                      onClick={() => setShowConfirm(false)}
+                      type="button"
+                      onClick={() => { setShowConfirm(false); setError(null) }}
+                      disabled={deleting}
                       style={{
                         padding: '9px 20px', borderRadius: 9, fontSize: 13, fontWeight: 600,
                         color: 'var(--text2)', background: '#fff',

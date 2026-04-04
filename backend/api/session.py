@@ -27,7 +27,8 @@ load_all_models()
 
 
 class CreateSessionRequest(BaseModel):
-    device_type: str = "desktop"
+    device_type:        str            = "desktop"
+    device_fingerprint: Optional[str]  = None  # SHA-256 from client
 
 
 class FeedbackRequest(BaseModel):
@@ -96,12 +97,50 @@ def create(
     uid = _resolve_user_id(authorization)
     session = create_session(uid, req.device_type)
     profile_loaded = _hydrate_session_from_db(session, uid)
+
+    device_known = True
+    device_is_new = False
+    fp = (req.device_fingerprint or "").strip()
+
+    if fp and db_available():
+        db_fp = SessionLocal()
+        try:
+            profile_row = crud.get_profile_by_user_id(db_fp, uid)
+            if profile_row:
+                device_known = crud.is_known_device(db_fp, uid, fp)
+                device_is_new = not device_known
+                if device_is_new:
+                    crud.register_device(db_fp, uid, fp)
+                    print(
+                        f"[device] New device registered for {uid[:12]}… "
+                        f"fp={fp[:8]}…"
+                    )
+                else:
+                    print(f"[device] Known device for {uid[:12]}… fp={fp[:8]}…")
+            else:
+                device_known = True
+                device_is_new = False
+        except Exception as e:
+            print(f"[device] fingerprint check failed: {e}")
+        finally:
+            db_fp.close()
+
+    session.device_fingerprint = fp
+    session.device_known = device_known
+
+    if device_is_new and profile_loaded:
+        session.current_score = 72.0
+        print(
+            f"[device] Unknown device — starting session at 72 for {uid[:12]}…"
+        )
+
     if profile_loaded and session.phase == Phase.ENROLLING:
         msg = "Session created. Enrollment progress restored from database."
     elif profile_loaded:
         msg = "Session created. Saved behavioral profile restored."
     else:
         msg = "Session created. Behavioral monitoring active."
+
     return {
         "session_id":          session.session_id,
         "user_id":             uid,
@@ -111,6 +150,7 @@ def create(
         "cohort_id":           session.cohort_id,
         "profile_loaded":      profile_loaded,
         "database":            db_available(),
+        "device_known":        device_known,
         "message":             msg,
     }
 

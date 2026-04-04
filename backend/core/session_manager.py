@@ -56,6 +56,11 @@ class Session:
     # Cumulative active windows from previous sessions (loaded from DB)
     lifetime_windows_prior: int = 0
 
+    # Device fingerprint for this session (client SHA-256; empty if not sent)
+    device_fingerprint: str = ""
+    # False when device not in known_device_hashes → elevated risk multiplier
+    device_known: bool = True
+
     def elapsed_minutes(self) -> float:
         return (time.time() - self.created_at) / 60
 

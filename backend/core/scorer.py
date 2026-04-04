@@ -291,8 +291,11 @@ def context_risk_multiplier(
     amount: float = 0,
     is_new_beneficiary: bool = False,
     hour: int = 12,
+    device_known: bool = True,
 ) -> float:
     mult = 1.0
+    if not device_known:
+        mult *= 1.35
     if action == "transfer":
         if amount > 50_000:
             mult *= 1.5

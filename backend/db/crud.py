@@ -114,3 +114,72 @@ def increment_feedback_confirmations(db: Session, user_id: str) -> None:
         return
     row.feedback_confirmations = (row.feedback_confirmations or 0) + 1
     db.commit()
+
+
+MAX_KNOWN_DEVICES = 5  # per user — prevents unbounded growth
+
+
+def is_known_device(
+    db: Session,
+    user_id: str,
+    device_fingerprint: str,
+) -> bool:
+    """Returns True if this device hash is in the user's known devices list."""
+    row = get_profile_by_user_id(db, user_id)
+    if not row:
+        return False
+    hashes = list(row.known_device_hashes or [])
+    return device_fingerprint in hashes
+
+
+def register_device(
+    db: Session,
+    user_id: str,
+    device_fingerprint: str,
+) -> bool:
+    """
+    Add device fingerprint to known devices (capped at MAX_KNOWN_DEVICES).
+    Returns True if this was a new device (just registered).
+    """
+    row = get_profile_by_user_id(db, user_id)
+    if not row:
+        return False
+
+    hashes: list[str] = list(row.known_device_hashes or [])
+    if device_fingerprint in hashes:
+        return False
+
+    hashes.append(device_fingerprint)
+    if len(hashes) > MAX_KNOWN_DEVICES:
+        hashes = hashes[-MAX_KNOWN_DEVICES:]
+
+    row.known_device_hashes = hashes
+    db.commit()
+    return True
+
+
+def get_known_devices(db: Session, user_id: str) -> list[str]:
+    """Return list of known device fingerprints for this user."""
+    row = get_profile_by_user_id(db, user_id)
+    if not row:
+        return []
+    return list(row.known_device_hashes or [])
+
+
+def remove_all_devices(db: Session, user_id: str) -> None:
+    """DPDPA erasure — clear all stored device fingerprints."""
+    row = get_profile_by_user_id(db, user_id)
+    if not row:
+        return
+    row.known_device_hashes = []
+    db.commit()
+
+
+def delete_profile_by_user_id(db: Session, user_id: str) -> bool:
+    """Delete behavioral profile row (models, checkpoints, device hashes)."""
+    row = get_profile_by_user_id(db, user_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Header, HTTPException
+from jwt.exceptions import PyJWTError
 from pydantic import BaseModel, EmailStr, field_validator
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
 
-from core.auth_tokens import create_access_token
+from core.auth_tokens import create_access_token, decode_access_token
 from db.database import SessionLocal, db_available
 from db import crud
 
@@ -76,5 +79,56 @@ def login(req: LoginRequest):
         if not user or not pwd_context.verify(req.password, user.password_hash):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         return _issue_token_response(str(user.id), user.email)
+    finally:
+        db.close()
+
+
+def _resolve_user_id_from_header(authorization: Optional[str]) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization: Bearer <token> required",
+        )
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Empty bearer token")
+    try:
+        payload = decode_access_token(token)
+        return str(payload["sub"])
+    except PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+@router.delete("/auth/profile")
+def delete_behavioral_profile(authorization: Optional[str] = Header(None)):
+    """DPDPA erasure — delete behavioral profile row (models, checkpoint, device hashes)."""
+    if not db_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Database not configured — set DATABASE_URL",
+        )
+    user_id = _resolve_user_id_from_header(authorization)
+    db = SessionLocal()
+    try:
+        deleted = crud.delete_profile_by_user_id(db, user_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail="No behavioral profile found for this account",
+            )
+        return {
+            "deleted":               True,
+            "user_id":               user_id,
+            "device_hashes_cleared": True,
+            "message": (
+                "Your behavioral profile and all device fingerprints have been "
+                "permanently deleted. Imprint will rebuild from scratch on your next session."
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[auth/profile DELETE] {e}")
+        raise HTTPException(status_code=500, detail="Profile deletion failed")
     finally:
         db.close()
