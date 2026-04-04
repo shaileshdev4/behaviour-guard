@@ -33,7 +33,11 @@ export default function SignupPage() {
     try {
       const auth = await registerUser(email.trim(), password)
       setAuth(auth.access_token, auth.user_id, auth.email)
-      const data = await createSession({})
+       // Get device fingerprint
+       const { getDeviceFingerprint } = await import('@/lib/deviceFingerprint')
+       const fp = await getDeviceFingerprint()
+ 
+       const data = await createSession({ deviceFingerprint: fp })
       if (!data.session_id) {
         setError('Could not start session')
         return

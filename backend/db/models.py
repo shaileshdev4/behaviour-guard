@@ -42,6 +42,9 @@ class BehavioralProfile(Base):
     cohort_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     lifetime_active_windows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     feedback_confirmations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    known_device_hashes: Mapped[Any] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

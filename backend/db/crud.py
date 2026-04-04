@@ -61,6 +61,7 @@ def upsert_behavioral_profile(
         cohort_id=cohort_id,
         lifetime_active_windows=lifetime_active_windows,
         enrollment_checkpoint=None,
+        known_device_hashes=[],
     )
     db.add(row)
     db.commit()
@@ -99,6 +100,7 @@ def upsert_enrollment_checkpoint(
         cohort_id=cohort_id,
         lifetime_active_windows=0,
         enrollment_checkpoint=payload,
+        known_device_hashes=[],
     )
     db.add(row)
     db.commit()

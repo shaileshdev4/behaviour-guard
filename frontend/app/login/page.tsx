@@ -49,7 +49,12 @@ export default function LoginPage() {
     try {
       const auth = await loginUser(email.trim(), emailPass)
       setAuth(auth.access_token, auth.user_id, auth.email)
-      const data = await createSession({})
+
+      // Get device fingerprint (respects consent)
+      const { getDeviceFingerprint } = await import('@/lib/deviceFingerprint')
+      const fp = await getDeviceFingerprint()
+
+      const data = await createSession({ deviceFingerprint: fp })
       finishLogin(data, auth.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed')
@@ -57,7 +62,7 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
-
+  
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: '#EEF2F7' }}>
 
