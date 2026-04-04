@@ -1,7 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSessionStore } from '@/lib/store'
 import { sendFeedback, type EventsExplanationDetail } from '@/lib/api'
+import FaceStepUpCapture from '@/components/FaceStepUpCapture'
+import AudioStepUpCapture from '@/components/AudioStepUpCapture'
+
+type StepUpPhase = 'choose' | 'face' | 'voice'
 
 function DeviationBar({ detail }: { detail: EventsExplanationDetail }) {
   const pct      = parseFloat(detail.deviation)
@@ -46,9 +50,19 @@ function DeviationBar({ detail }: { detail: EventsExplanationDetail }) {
 
 export default function SecurityOverlay() {
   const { showOverlay, explanation, sessionId, setOverlay, updateScore } = useSessionStore()
-  const [otp, setOtp]               = useState('')
   const [loading, setLoading]       = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [stepUpPhase, setStepUpPhase] = useState<StepUpPhase>('choose')
+  const [stepUpVerified, setStepUpVerified] = useState(false)
+  const [stepUpHint, setStepUpHint]         = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!showOverlay) {
+      setStepUpPhase('choose')
+      setStepUpVerified(false)
+      setStepUpHint(null)
+    }
+  }, [showOverlay])
 
   if (!showOverlay) return null
 
@@ -67,7 +81,6 @@ export default function SecurityOverlay() {
       await sendFeedback(sessionId, true)
       updateScore({ score: 70, state: 'green' })
       setOverlay(false)
-      setOtp('')
     } catch (e) {
       console.error('[Trinetra] Feedback failed:', e)
     } finally {
@@ -195,11 +208,14 @@ export default function SecurityOverlay() {
             <p style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1.6 }}>
               <strong>Common reasons:</strong> new keyboard, typing on your phone, background noise,
               or someone else using your device.{' '}
-              {exp?.advice ?? 'If this is you, enter the OTP and continue.'}
+              {exp?.advice ?? 'If this is you, complete face or voice verification to continue.'}
             </p>
           </div>
 
-          {/* OTP */}
+          {/*
+            OTP — commented out while integrating face & voice step-up.
+            const [otp, setOtp] = useState('')
+            …and in handleVerify after setOverlay(false): setOtp('')
           <div style={{ marginBottom: 14 }}>
             <label className="input-label">
               One-Time Password — sent to your registered mobile
@@ -222,22 +238,161 @@ export default function SecurityOverlay() {
               For this demo, any 6 digits will work
             </p>
           </div>
+          */}
+
+          {/* Step-up: image or audio (replaces OTP) */}
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 'var(--r-md)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 2px 10px rgba(15,18,41,0.06)',
+            }}
+          >
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color: 'var(--text2)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                marginBottom: 6,
+              }}
+            >
+              Verify your identity
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.5 }}>
+              Trinetra flagged this session. Choose one way to continue — same idea as a one-time
+              code, but with biometrics.
+            </p>
+
+            {stepUpPhase === 'choose' && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  onClick={() => {
+                    setStepUpPhase('face')
+                    setStepUpVerified(false)
+                    setStepUpHint(null)
+                  }}
+                  style={{ padding: '12px 10px', fontSize: 13, width: '100%' }}
+                >
+                  Verify with image
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  onClick={() => {
+                    setStepUpPhase('voice')
+                    setStepUpVerified(false)
+                    setStepUpHint(null)
+                  }}
+                  style={{ padding: '12px 10px', fontSize: 13, width: '100%' }}
+                >
+                  Verify with audio
+                </button>
+              </div>
+            )}
+
+            {stepUpPhase !== 'choose' && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={loading}
+                onClick={() => {
+                  setStepUpPhase('choose')
+                  setStepUpVerified(false)
+                  setStepUpHint(null)
+                }}
+                style={{ padding: '4px 0', fontSize: 12, marginBottom: 12, width: '100%', textAlign: 'left' }}
+              >
+                ← Other verification options
+              </button>
+            )}
+
+            {stepUpPhase === 'face' && (
+              <FaceStepUpCapture
+                frameless
+                disabled={loading}
+                onVerified={() => {
+                  setStepUpVerified(true)
+                  setStepUpHint(null)
+                }}
+                onFailure={(msg) => {
+                  setStepUpVerified(false)
+                  setStepUpHint(msg)
+                }}
+              />
+            )}
+            {stepUpPhase === 'voice' && (
+              <AudioStepUpCapture
+                frameless
+                disabled={loading}
+                onVerified={() => {
+                  setStepUpVerified(true)
+                  setStepUpHint(null)
+                }}
+                onFailure={(msg) => {
+                  setStepUpVerified(false)
+                  setStepUpHint(msg)
+                }}
+              />
+            )}
+          </div>
+
+          {stepUpVerified && (
+            <p
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--green)',
+                marginBottom: 12,
+                textAlign: 'center',
+              }}
+            >
+              Step-up verified — you can confirm below.
+            </p>
+          )}
+          {stepUpHint && !stepUpVerified && (
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--red)',
+                marginBottom: 12,
+                textAlign: 'center',
+                lineHeight: 1.45,
+              }}
+            >
+              {stepUpHint}
+            </p>
+          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               type="button"
               onClick={handleVerify}
-              disabled={loading || otp.length < 6}
+              disabled={loading || !stepUpVerified}
               className="btn btn-primary"
               style={{
                 width: '100%', padding: '13px', fontSize: 14,
-                background: loading || otp.length < 6 ? '#93C5FD' : 'var(--primary)',
-                cursor: loading || otp.length < 6 ? 'not-allowed' : 'pointer',
-                boxShadow: otp.length >= 6 && !loading ? '0 4px 14px rgba(30,58,138,0.25)' : 'none',
+                background: loading || !stepUpVerified ? '#93C5FD' : 'var(--primary)',
+                cursor: loading || !stepUpVerified ? 'not-allowed' : 'pointer',
+                boxShadow: stepUpVerified && !loading ? '0 4px 14px rgba(30,58,138,0.25)' : 'none',
               }}
             >
-              {loading ? 'Verifying…' : 'Verify — This was me'}
+              {loading ? 'Verifying…' : 'Confirm — This was me'}
             </button>
 
             <button type="button" onClick={handleNotMe} className="btn btn-danger" style={{ width: '100%', padding: '12px', fontSize: 13 }}>

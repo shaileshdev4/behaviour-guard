@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.session import router as session_router
 from api.events import router as events_router
 from api.auth import router as auth_router
+from api.face import router as face_router
+from api.voice import router as voice_router
 from core.session_manager import get_session
 
 app = FastAPI(title="BehaviorGuard API", version="1.0.0")
@@ -26,6 +28,8 @@ app.add_middleware(
 app.include_router(session_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(face_router, prefix="/api")
+app.include_router(voice_router, prefix="/api")
 
 
 @app.on_event("startup")

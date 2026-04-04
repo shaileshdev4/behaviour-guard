@@ -1,6 +1,43 @@
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.13.0
+bcrypt==4.0.1
+cffi==2.0.0
+click==8.3.1
+colorama==0.4.6
+cryptography==46.0.6
+dnspython==2.8.0
 dotenv==0.9.9
+email-validator==2.3.0
+fastapi==0.135.3
 greenlet==3.3.2
+h11==0.16.0
+idna==3.11
+joblib==1.5.3
 numpy==2.4.4
+passlib==1.7.4
+psycopg2-binary==2.9.11
+pycparser==3.0
+pydantic==2.12.5
+pydantic_core==2.41.5
+PyJWT==2.12.1
 python-dotenv==1.2.2
+scikit-learn==1.8.0
+scipy==1.17.1
 SQLAlchemy==2.0.49
+starlette==1.0.0
+threadpoolctl==3.6.0
+typing-inspection==0.4.2
 typing_extensions==4.15.0
+
+# Step-up auth: image uses pre-saved encodings in models/face/face_model.pkl (no training in API)
+# dlib (via face-recognition) can be hard on Windows — use WSL or conda if pip fails
+face-recognition>=1.3.0
+Pillow>=10.0.0
+python-multipart>=0.0.9
+uvicorn==0.42.0
+
+# Voice step-up: stub only unless you add models/voice/* + scoring in core/voice_verify.py
+# Uncomment when you integrate a speaker model:
+# librosa>=0.10.0
+# soundfile>=0.12.0
