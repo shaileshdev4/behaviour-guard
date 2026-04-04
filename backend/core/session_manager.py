@@ -19,47 +19,48 @@ class State(str, Enum):
 
 @dataclass
 class Session:
-    session_id:     str
-    user_id:        str
-    device_type:    str          = "desktop"
-    phase:          Phase        = Phase.ENROLLING
-    state:          State        = State.GREEN
-    created_at:     float        = field(default_factory=time.time)
+    session_id:  str
+    user_id:     str
+    device_type: str   = "desktop"
+    phase:       Phase = Phase.ENROLLING
+    state:       State = State.GREEN
+    created_at:  float = field(default_factory=time.time)
 
     # Enrollment
-    enrollment_vectors: list     = field(default_factory=list)
-    enrollment_target:  int      = 8         # windows needed before model trains
+    enrollment_vectors: list = field(default_factory=list)
+    enrollment_target:  int  = 12   # ← was 8. More vectors = stable IF boundary.
+                                    # 12 × 10s = ~120s of typing. Still fast enough.
 
     # Scoring
-    current_score:  float        = 100.0
-    score_history:  list         = field(default_factory=list)  # last N scores
-    state_history:  list         = field(default_factory=list)  # last N states
-    window_count:   int          = 0
+    current_score: float = 100.0
+    score_history: list  = field(default_factory=list)
+    state_history: list  = field(default_factory=list)
+    window_count:  int   = 0
 
-    # Navigation history (for similarity scoring)
-    nav_history:    list         = field(default_factory=list)
+    # Navigation history
+    nav_history: list = field(default_factory=list)
 
-    # Model (trained during enrollment)
-    model:          object       = None
-    scaler:         object       = None
+    # Individual model (trained at end of enrollment)
+    model:          object               = None
+    scaler:         object               = None
     baseline_means: Optional[np.ndarray] = None
 
-    # Cohort GMM (assigned from mean dwell using models/cohort_config.json)
+    # Cohort assignment
     cohort_id: Optional[str] = None
 
-    # Last raw tier scores for API / dashboard (population, cohort, individual)
+    # Last tier scores for API/dashboard
     last_tier_scores: Optional[dict[str, Any]] = None
 
-    # Active-phase windows used for trust_day ramp (notebook fusion schedule)
+    # Trust ramp
     active_scoring_windows: int = 0
+    lifetime_windows_prior:  int = 0
 
-    # Cumulative active windows from previous sessions (loaded from DB)
-    lifetime_windows_prior: int = 0
+    # Cross-session retraining
+    session_active_vectors: list = field(default_factory=list)
 
-    # Device fingerprint for this session (client SHA-256; empty if not sent)
-    device_fingerprint: str = ""
-    # False when device not in known_device_hashes → elevated risk multiplier
-    device_known: bool = True
+    # Device fingerprint
+    device_fingerprint: str  = ""
+    device_known:       bool = True
 
     def elapsed_minutes(self) -> float:
         return (time.time() - self.created_at) / 60
@@ -71,7 +72,7 @@ class Session:
 
     def add_score(self, score: float):
         self.score_history.append(round(score, 2))
-        if len(self.score_history) > 20:      # keep last 20 windows
+        if len(self.score_history) > 20:
             self.score_history = self.score_history[-20:]
 
     def add_state(self, state: State):
@@ -80,8 +81,6 @@ class Session:
             self.state_history = self.state_history[-10:]
 
 
-# ── In-memory store ────────────────────────────────────────────────────────────
-# Key: session_id → Session object
 _sessions: dict[str, Session] = {}
 
 

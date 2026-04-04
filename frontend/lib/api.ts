@@ -36,6 +36,7 @@ export interface CreateSessionResponse {
   user_id?:             string
   phase?:               string
   state?:               string
+  score?:               number
   enrollment_progress?: number
   cohort_id?:           string | null
   profile_loaded?:      boolean
@@ -57,7 +58,7 @@ export interface AuthTokenResponse {
   email:        string
 }
 
-/** Register — requires DATABASE_URL on backend. Returns JWT; does not create Imprint session. */
+/** Register — requires DATABASE_URL on backend. Returns JWT; does not create Trinetra session. */
 export async function registerUser(
   email: string,
   password: string
@@ -83,7 +84,7 @@ export async function loginUser(
   return parseJson<AuthTokenResponse>(res)
 }
 
-/** Start Imprint session. Requires JWT from register/login (`authHeaders`). */
+/** Start Trinetra session. Requires JWT from register/login (`authHeaders`). */
 export async function createSession(options: {
   deviceType?:        string
   deviceFingerprint?: string | null

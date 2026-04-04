@@ -1,38 +1,28 @@
 
-from core.scorer import load_all_models
-from core.session_manager import create_session
-from core.response_engine import process_window
-import numpy as np
+import joblib, numpy as np, math
+from pathlib import Path
 
-load_all_models()
+pop_model  = joblib.load('models/population_model.pkl')
+pop_scaler = joblib.load('models/population_scaler.pkl')
 
-# Local smoke test user id (no DB); not a login account.
-session = create_session('00000000-0000-0000-0000-000000000001', 'desktop')
+# CMU-like vector (what training data looks like)
+cmu = np.array([108, 26, 92, 47, 201, 59, 2.8, 0, 0, 0, 0, 0, 1, 10, 0, 0, 0.54, 0.30])
 
-# Simulate 10 enrollment windows (normal user typing)
-def make_keys(base_dwell=75, base_flight=70):
-    keys = []
-    t = 1000.0
-    for i in range(20):
-        keys.append({'type':'keydown','key':chr(65+i),'timestamp':t})
-        t += base_dwell + np.random.normal(0,5)
-        keys.append({'type':'keyup','key':chr(65+i),'timestamp':t})
-        t += base_flight + np.random.normal(0,8)
-    return keys
+# Mask browser features (what scorer.py now does)
+masked = cmu.copy()
+for idx, val in {7:0, 8:0, 9:0, 10:0, 11:0, 12:1.0, 14:0, 15:0}.items():
+    masked[idx] = val
 
-print('--- Enrollment phase ---')
-for i in range(9):
-    r = process_window(session, make_keys(), [], [])
-    print(f"Window {i+1}: phase={r['phase']} progress={r['enrollment_progress']}%")
+scaled = pop_scaler.transform(masked.reshape(1,-1))
+raw    = pop_model.score_samples(scaled)[0]
+print(f'CMU-like masked score: raw={raw:.4f}  sigmoid*0.05={1/(1+math.exp(-raw*0.05)):.4f}')
 
-print()
-print('--- Active phase (normal user) ---')
-for i in range(4):
-    r = process_window(session, make_keys(), [], [])
-    print(f"Window {i+1}: score={r['score']} state={r['state']}")
+# Browser runtime vector
+browser = cmu.copy()
+browser[8]=0.8; browser[9]=0.3; browser[10]=15; browser[11]=8; browser[12]=0.85; browser[14]=25; browser[15]=2.5
 
-print()
-print('--- Fraudster takes over (very different timing) ---')
-for i in range(6):
-    r = process_window(session, make_keys(base_dwell=200, base_flight=300), [], [])
-    print(f"Window {i+1}: score={r['score']} state={r['state']} action={r['action']}")
+# With masking — same as CMU
+scaled2 = pop_scaler.transform(masked.reshape(1,-1))  # still using masked
+raw2    = pop_model.score_samples(scaled2)[0]
+print(f'Browser vector MASKED: raw={raw2:.4f}  sigmoid*0.05={1/(1+math.exp(-raw2*0.05)):.4f}')
+print(f'Score difference after masking: {abs(raw-raw2):.4f}  (want: 0.0000)')

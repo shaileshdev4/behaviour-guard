@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createSession, loginUser, registerUser } from '@/lib/api'
 import { setAuth } from '@/lib/auth'
-import { useSessionStore } from '@/lib/store'
+import { applyCreateSessionResponse } from '@/lib/imprintRecover'
 
 export default function LoginPage() {
   return (
@@ -32,9 +32,6 @@ export default function LoginPage() {
 function AuthForms() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const setSession = useSessionStore((s) => s.setSession)
-  const updateScore = useSessionStore((s) => s.updateScore)
-  const setDeviceTrustFromSession = useSessionStore((s) => s.setDeviceTrustFromSession)
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
@@ -70,20 +67,7 @@ function AuthForms() {
       setError('Server returned an invalid response')
       return
     }
-    setDeviceTrustFromSession(fingerprintSent, data)
-    setSession(data.session_id, displayId)
-    const raw = data.state
-    const state: 'green' | 'yellow' | 'red' =
-      raw === 'yellow' || raw === 'red' ? raw : 'green'
-    const phase: 'enrolling' | 'active' =
-      data.phase === 'active' ? 'active' : 'enrolling'
-    updateScore({
-      phase,
-      state,
-      enrollmentProgress: phase === 'active' ? 100 : 0,
-      cohortId: data.cohort_id ?? null,
-      tierScores: null,
-    })
+    applyCreateSessionResponse(data, displayId, fingerprintSent)
     router.push('/banking/dashboard')
   }
 
@@ -177,7 +161,7 @@ function AuthForms() {
                 letterSpacing: '-0.02em',
               }}
             >
-              BharatBank
+              Trinetra
             </span>
           </div>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginLeft: 46 }}>
@@ -208,13 +192,13 @@ function AuthForms() {
               marginBottom: 40,
             }}
           >
-            Create an account or sign in. Imprint verifies how you type and move the mouse — not what you
+            Create an account or sign in. Trinetra verifies how you type and move the mouse — not what you
             type.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              ['Continuous Identity Verification', 'Monitors behavior every 5 seconds silently'],
+              ['Continuous Identity Verification', 'Monitors behavior every 10 seconds silently'],
               ['Zero Friction for You', 'Invisible to legitimate users — only alerts on anomalies'],
               ['Your profile is saved', 'Returning users skip enrollment when a model exists in the database'],
             ].map(([title, sub]) => (
@@ -279,7 +263,7 @@ function AuthForms() {
               >
                 B
               </div>
-              <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)' }}>BharatBank</span>
+              <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)' }}>Trinetra</span>
             </div>
           </div>
 
@@ -475,7 +459,7 @@ function AuthForms() {
           </div>
 
           <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 24 }}>
-            Protected by Imprint continuous authentication
+            Protected by Trinetra continuous authentication
           </p>
         </div>
       </div>

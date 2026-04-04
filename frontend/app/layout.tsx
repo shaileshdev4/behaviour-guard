@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Imprint | Secure Banking',
+  title: 'Trinetra | Secure Banking',
   description: 'Continuous behavioral authentication',
 }
 

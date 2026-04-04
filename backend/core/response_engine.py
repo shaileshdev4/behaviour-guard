@@ -20,9 +20,15 @@ from db.profile_store import persist_bg_session_profile
 
 # ── Thresholds ─────────────────────────────────────────────────────────────────
 
-GREEN_MIN  = 55   # score >= 55 → green  (lowered from 65 to match our model range)
-YELLOW_MIN = 28   # score >= 28 → yellow (lowered from 35)
-# score < 28 → red
+# Thresholds calibrated to actual model output range.
+# After feature masking fix:
+#   - Legitimate user IF score: 0.55–0.85 (normalised with calibrated range)
+#   - Fused score at trust_day=2: 0.35*0.95 + 0.50*0.80 + 0.15*0.65 = 0.33+0.40+0.10 = 0.83 → 83
+#   - Fused score at trust_day=7: 0.10*0.95 + 0.20*0.80 + 0.70*0.65 = 0.10+0.16+0.46 = 0.72 → 72
+#   - Impostor IF score: 0.10–0.30 → fused ≈ 30–45 → RED or YELLOW ✓
+GREEN_MIN  = 58   # score >= 58 → green
+YELLOW_MIN = 32   # score >= 32 → yellow
+# score < 32 → red
 
 
 # ── State machine ──────────────────────────────────────────────────────────────
@@ -220,7 +226,7 @@ def explain_anomaly(
 
     if not top:
         return {
-            "messages":   ["Imprint couldn't compare this session to your saved profile in enough detail."],
+            "messages":   ["Trinetra couldn't compare this session to your saved profile in enough detail."],
             "details":    [],
             "confidence": "low",
             "confidence_msg": "Not enough comparable signals in this window.",
@@ -256,13 +262,13 @@ def explain_anomaly(
     top_pct = top[0][1] if top else 0
     if top_pct > 150:
         confidence = "high"
-        confidence_msg = "Imprint is highly confident this doesn't match your pattern."
+        confidence_msg = "Trinetra is highly confident this doesn't match your pattern."
     elif top_pct > 75:
         confidence = "medium"
-        confidence_msg = "Imprint detected a significant behavioral shift."
+        confidence_msg = "Trinetra detected a significant behavioral shift."
     else:
         confidence = "low"
-        confidence_msg = "Imprint noticed a mild deviation — could be fatigue or a new keyboard."
+        confidence_msg = "Trinetra noticed a mild deviation — could be fatigue or a new keyboard."
 
     return {
         "messages":        messages,
@@ -271,7 +277,7 @@ def explain_anomaly(
         "confidence_msg":  confidence_msg,
         "advice":          (
             "If this is you, tap 'This was me' and continue normally. "
-            "Imprint will recalibrate. If not, secure your account immediately."
+            "Trinetra will recalibrate. If not, secure your account immediately."
         ),
     }
 
@@ -316,7 +322,7 @@ def process_window(
     context:      dict = None,
 ) -> dict:
     """
-    Called each flush interval (~5s) with a new batch of behavioral events.
+    Called each flush interval (~10s) with a new batch of behavioral events.
     1. Extract feature vector
     2. Enrollment or scoring
     3. State transition
@@ -403,6 +409,10 @@ def process_window(
 
     # ── Active scoring phase (3-tier fusion: SVM + GMM + Isolation Forest) ──
     session.active_scoring_windows += 1
+    # Track vectors for cross-session retraining
+    session.session_active_vectors.append(vector.tolist())
+    if len(session.session_active_vectors) > 200:
+        session.session_active_vectors = session.session_active_vectors[-200:]
     total_active = session.lifetime_windows_prior + session.active_scoring_windows
     trust_day = trust_day_for_total_active(total_active, enrolling=False)
 
@@ -430,8 +440,9 @@ def process_window(
         "cohort_id": session.cohort_id,
     }
 
-    # EMA smoothing
-    session.current_score = apply_ema(session.current_score, raw_score, alpha=0.3)
+    # alpha=0.4: responds faster to legitimate recovery, still smooth against noise.
+    # At alpha=0.3, it took 6+ windows to converge. At 0.4, ~4 windows.
+    session.current_score = apply_ema(session.current_score, raw_score, alpha=0.4)
     session.add_score(session.current_score)
 
     # State transition

@@ -35,7 +35,7 @@ export default function PrivacyPage() {
     { label: 'Navigation sequences',    stored: true,  note: 'Page order and dwell times — anonymized' },
     { label: 'Mouse velocity averages', stored: true,  note: 'Statistical summary only' },
     { label: 'Transaction amounts',     stored: false, note: 'Not used by behavioral system' },
-    { label: 'Account details',         stored: false, note: 'Outside scope of Imprint' },
+    { label: 'Account details',         stored: false, note: 'Outside scope of Trinetra' },
     { label: 'Location / IP address',   stored: false, note: 'Not collected' },
   ]
 
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
           Your data. Your control.
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7 }}>
-          Imprint is built on a privacy-first foundation. This page shows exactly
+          Trinetra is built on a privacy-first foundation. This page shows exactly
           what behavioral data is stored about you and gives you full control over it.
           Compliant with DPDPA 2023.
         </p>
@@ -110,7 +110,7 @@ export default function PrivacyPage() {
             Data Inventory
           </h2>
           <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
-            Every data point Imprint touches — and what happens to it
+            Every data point Trinetra touches — and what happens to it
           </p>
         </div>
 
@@ -265,14 +265,14 @@ export default function PrivacyPage() {
         <div style={{ padding: '20px 22px' }}>
           {deleted ? (
             <p style={{ fontSize: 13, color: '#047857', lineHeight: 1.6 }}>
-              Your behavioral profile has been permanently deleted. Imprint will rebuild
+              Your behavioral profile has been permanently deleted. Trinetra will rebuild
               it from scratch on your next session. This action cannot be undone.
             </p>
           ) : (
             <>
               <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 20 }}>
                 Permanently delete all behavioral data associated with your account.
-                Imprint will lose your enrolled profile and restart enrollment on your next session.
+                Trinetra will lose your enrolled profile and restart enrollment on your next session.
                 This action is irreversible.
               </p>
 

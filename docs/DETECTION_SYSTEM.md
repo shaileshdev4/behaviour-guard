@@ -1,4 +1,4 @@
-# BehaviorGuard / Imprint: How Detection Works (Implementation Guide)
+# BehaviorGuard / Trinetra: How Detection Works (Implementation Guide)
 
 This document describes **what the running codebase actually does**: raw browser events → 18-D features → **three-tier** scoring (population + cohort + individual) → EMA → **green / yellow / red** with hysteresis, plus optional **Postgres/Supabase** profile persistence and **device fingerprint** context.
 
@@ -6,7 +6,7 @@ This document describes **what the running codebase actually does**: raw browser
 
 ## 1. What “detection” means here
 
-The system performs **continuous behavioral session risk scoring** (not a labeled “fraud” classifier at inference time). The **core question** at each ~5 s window is: **given this fixed 18-D summary of recent behavior, how “normal” is it under (a) the general population model, (b) the typing-speed cohort’s model, and (c) this account’s own enrollment model — then how do we tighten that judgment when context (transfers, device trust, hour) is risky?**
+The system performs **continuous behavioral session risk scoring** (not a labeled “fraud” classifier at inference time). The **core question** at each ~10 s window is: **given this fixed 18-D summary of recent behavior, how “normal” is it under (a) the general population model, (b) the typing-speed cohort’s model, and (c) this account’s own enrollment model — then how do we tighten that judgment when context (transfers, device trust, hour) is risky?**
 
 In order:
 
@@ -32,7 +32,7 @@ In order:
 flowchart TB
   subgraph browser [Browser / Next.js]
     A[keydown/keyup / mouse / nav] --> B[Buffers]
-    B --> C[POST /api/session/events every ~5s]
+    B --> C[POST /api/session/events every ~10s]
   end
   subgraph api [FastAPI]
     C --> E[process_window]
@@ -127,7 +127,7 @@ See §3.1 for cohort. Population: `population_model.pkl` + `population_scaler.pk
 
 ### 5.2 Event collection (browser)
 
-`useBehaviorCollector`: keystrokes, throttled mouse, navigation. Flush ~**5 s**; skip send if **&lt; 3** keystrokes **and** **&lt; 3** mouse samples.
+`useBehaviorCollector`: keystrokes, throttled mouse, navigation. Flush ~**10 s**; skip send if **&lt; 3** keystrokes **and** **&lt; 3** mouse samples.
 
 ### 5.3 Server: `POST /api/session/events`
 
@@ -326,7 +326,7 @@ State history capped at **10** entries.
 
 1. Set **`NEXT_PUBLIC_API_URL`** to the API base **including `/api`**.
 2. After login/register: **`createSession`** with JWT; pass **`deviceFingerprint`** when consent allows.
-3. Attach listeners; **`flush`** ~**5 s** with monotonic timestamps.
+3. Attach listeners; **`flush`** ~**10 s** with monotonic timestamps.
 4. On **RED**, show **`explanation`**.
 5. **`injectImpostorEvents`** posts synthetic slow keystrokes through the same pipeline for demos.
 

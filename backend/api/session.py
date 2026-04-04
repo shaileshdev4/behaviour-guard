@@ -1,3 +1,4 @@
+import io
 from typing import Optional
 
 import jwt
@@ -46,8 +47,8 @@ def _hydrate_session_from_db(session, user_id: str) -> bool:
         if not p:
             return False
         if p.model_blob and p.scaler_blob:
-            session.model = joblib.loads(p.model_blob)
-            session.scaler = joblib.loads(p.scaler_blob)
+            session.model = joblib.load(io.BytesIO(p.model_blob))
+            session.scaler = joblib.load(io.BytesIO(p.scaler_blob))
             session.baseline_means = np.array(p.baseline_means, dtype=np.float32)
             session.cohort_id = p.cohort_id
             session.lifetime_windows_prior = int(p.lifetime_active_windows or 0)
@@ -141,11 +142,12 @@ def create(
     else:
         msg = "Session created. Behavioral monitoring active."
 
-    return {
+    out = {
         "session_id":          session.session_id,
         "user_id":             uid,
         "phase":               session.phase.value,
         "state":               session.state.value,
+        "score":               round(session.current_score, 1),
         "enrollment_progress": session.enrollment_progress(),
         "cohort_id":           session.cohort_id,
         "profile_loaded":      profile_loaded,
@@ -153,6 +155,14 @@ def create(
         "device_known":        device_known,
         "message":             msg,
     }
+    print(
+        "[session/create] "
+        f"sid={session.session_id[:8]}… user={uid[:12]}… "
+        f"phase={out['phase']} state={out['state']} score={session.current_score:.1f} "
+        f"enroll%={out['enrollment_progress']} profile_loaded={profile_loaded} "
+        f"cohort_id={session.cohort_id} device_known={device_known}"
+    )
+    return out
 
 
 @router.get("/session/{session_id}")

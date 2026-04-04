@@ -1,5 +1,5 @@
 /**
- * Browser-side device fingerprint for Imprint.
+ * Browser-side device fingerprint for Trinetra.
  *
  * - If consent is `denied`, `getDeviceFingerprint()` returns `null` → `createSession` sends no
  *   `device_fingerprint` → backend skips known-device logic (treats as no client hash).
@@ -64,7 +64,7 @@ async function computeFingerprint(): Promise<string> {
     const ctx = canvas.getContext('2d')!
     ctx.font = '14px Arial'
     ctx.fillStyle = '#1B2059'
-    ctx.fillText('Imprint behavioral auth 🔒', 10, 28)
+    ctx.fillText('Trinetra behavioral auth 🔒', 10, 28)
     components.push(canvas.toDataURL().slice(-64)) // last 64 chars = rendering diff
   } catch { components.push('') }
 
@@ -110,7 +110,7 @@ export async function getDeviceFingerprint(): Promise<string | null> {
     }
     return fp
   } catch (e) {
-    console.warn('[Imprint] Device fingerprint computation failed:', e)
+    console.warn('[Trinetra] Device fingerprint computation failed:', e)
     return null
   }
 }

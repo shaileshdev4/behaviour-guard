@@ -85,7 +85,7 @@ export default function DeviceRecognitionPanel({ footerExtra }: Props) {
 
       <div style={{ padding: '20px 22px' }}>
         <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 16 }}>
-          Sends a SHA-256 hash of browser and hardware signals to Imprint so returning devices can be
+          Sends a SHA-256 hash of browser and hardware signals to Trinetra so returning devices can be
           recognised. Unknown devices get stricter behavioral scoring. No PII is stored in the hash.
           You can turn this off anytime; sign out and in again for it to apply to your next session.
         </p>

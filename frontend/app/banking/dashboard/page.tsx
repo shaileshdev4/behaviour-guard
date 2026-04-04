@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSessionStore } from '@/lib/store'
 import LiveSignalFeed from '@/components/LiveSignalFeed'
 import EnrollmentCard from '@/components/EnrollmentCard'
@@ -36,6 +37,7 @@ function tierBar(label: string, sub: string, v: number | null) {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const { score, state, phase, tierScores, cohortId } = useSessionStore()
 
   const stateCfg = {
@@ -80,7 +82,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Imprint status — shows only when active */}
+        {/* Trinetra status — shows only when active */}
         {phase === 'active' && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -91,10 +93,10 @@ export default function Dashboard() {
               <div style={{ width: 7, height: 7, borderRadius: 4, background: stateCfg.dot }} />
               <div>
                 <p style={{ fontSize: 13, fontWeight: 600, color: stateCfg.color }}>
-                  Imprint — {stateCfg.label}
+                  Trinetra — {stateCfg.label}
                 </p>
                 <p style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
-                  Your session is verified every 5 seconds. No action needed.
+                  Your session is verified every 10 seconds. No action needed.
                 </p>
               </div>
             </div>
@@ -108,6 +110,106 @@ export default function Dashboard() {
             </p>
           </div>
         )}
+
+        {/* Search bar — passive keystroke collection */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: '12px 16px',
+            border: '1px solid var(--border)',
+            boxShadow: '0 1px 3px rgba(15,18,41,0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 14, color: 'var(--text3)' }}>⌕</span>
+          <input
+            type="text"
+            placeholder="Search transactions, payees, IFSC codes..."
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              fontSize: 13,
+              color: 'var(--text)',
+              background: 'transparent',
+            }}
+          />
+        </div>
+
+        {/* Quick Pay card — more typing surface on dashboard */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 14,
+            overflow: 'hidden',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(15,18,41,0.05)',
+          }}
+        >
+          <div
+            style={{
+              padding: '12px 18px',
+              background: 'var(--surface2)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Quick Pay</h3>
+            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Trinetra active</span>
+          </div>
+          <div style={{ padding: '16px 18px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="UPI ID or account number"
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: '9px 12px',
+                borderRadius: 8,
+                fontSize: 13,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
+            />
+            <input
+              type="number"
+              placeholder="₹ Amount"
+              style={{
+                width: 120,
+                padding: '9px 12px',
+                borderRadius: 8,
+                fontSize: 13,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => router.push('/banking/transfer')}
+              style={{
+                padding: '9px 18px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                background: 'var(--primary)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Pay
+            </button>
+          </div>
+        </div>
 
         {/* Account cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

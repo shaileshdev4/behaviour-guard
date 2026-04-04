@@ -30,7 +30,7 @@ export default function BankingSettingsPage() {
         Settings
       </h1>
       <p style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.65, marginBottom: 28 }}>
-        Control how Imprint uses this browser. Changes to device recognition apply on your{' '}
+        Control how Trinetra uses this browser. Changes to device recognition apply on your{' '}
         <strong style={{ color: 'var(--text)' }}>next</strong> sign-in (current session already has a
         server session).
       </p>

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 import joblib
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -39,17 +41,25 @@ def upsert_behavioral_profile(
     baseline_means: list[float],
     cohort_id: str | None,
     lifetime_active_windows: int,
+    recent_vectors: list | None = None,
 ) -> BehavioralProfile:
-    model_blob = joblib.dumps(model)
-    scaler_blob = joblib.dumps(scaler)
+    buf = io.BytesIO()
+    joblib.dump(model, buf)
+    model_blob = buf.getvalue()
+    buf = io.BytesIO()
+    joblib.dump(scaler, buf)
+    scaler_blob = buf.getvalue()
+
     row = get_profile_by_user_id(db, user_id)
     if row:
-        row.model_blob = model_blob
-        row.scaler_blob = scaler_blob
-        row.baseline_means = baseline_means
-        row.cohort_id = cohort_id
+        row.model_blob              = model_blob
+        row.scaler_blob             = scaler_blob
+        row.baseline_means          = baseline_means
+        row.cohort_id               = cohort_id
         row.lifetime_active_windows = lifetime_active_windows
-        row.enrollment_checkpoint = None
+        row.enrollment_checkpoint   = None
+        if recent_vectors is not None:
+            row.recent_vectors = recent_vectors
         db.commit()
         db.refresh(row)
         return row
@@ -61,13 +71,13 @@ def upsert_behavioral_profile(
         cohort_id=cohort_id,
         lifetime_active_windows=lifetime_active_windows,
         enrollment_checkpoint=None,
+        recent_vectors=recent_vectors or [],
         known_device_hashes=[],
     )
     db.add(row)
     db.commit()
     db.refresh(row)
     return row
-
 
 def upsert_enrollment_checkpoint(
     db: Session,
@@ -100,6 +110,7 @@ def upsert_enrollment_checkpoint(
         cohort_id=cohort_id,
         lifetime_active_windows=0,
         enrollment_checkpoint=payload,
+        recent_vectors=[],
         known_device_hashes=[],
     )
     db.add(row)

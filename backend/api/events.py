@@ -62,4 +62,17 @@ def receive_events(batch: EventBatch):
     )
     maybe_periodic_enrollment_persist(session)
     maybe_periodic_persist(session)
+
+    tiers = result.get("tier_scores") or {}
+    print(
+        "[session/events] "
+        f"sid={batch.session_id[:8]}… window_id={batch.window_id} "
+        f"user={session.user_id[:12]}… "
+        f"in=ks:{len(keystrokes)} mouse:{len(mouse)} nav:{len(nav)} "
+        f"ctx={context.get('action', 'browse')} "
+        f"→ score={result.get('score')} state={result.get('state')} phase={result.get('phase')} "
+        f"win_count={result.get('window_count')} enroll%={result.get('enrollment_progress')} "
+        f"tiers pop={tiers.get('population')} coh={tiers.get('cohort')} "
+        f"ind={tiers.get('individual')} trust_day={tiers.get('trust_day')}"
+    )
     return result

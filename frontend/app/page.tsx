@@ -161,11 +161,11 @@ function HeroCard() {
                   fontSize: 14, fontWeight: 700, color: 'var(--primary)',
                   letterSpacing: '-0.01em',
                 }}>
-                  Imprint
+                  Trinetra
                 </span>
               </div>
               <p style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 500 }}>
-                Session · BharatBank
+                Session · Trinetra
               </p>
             </div>
 
@@ -320,7 +320,7 @@ function HeroCard() {
               {alertMsg || (
                 isActive ? 'Identity continuously verified — session secure'
                   : isProg ? `Building behavioral fingerprint... ${score}%`
-                  : 'Initializing Imprint Auth...'
+                  : 'Initializing Trinetra...'
               )}
             </p>
           </div>
@@ -371,7 +371,7 @@ export default function LandingPage() {
               color: 'var(--primary)',
               letterSpacing: '-0.02em',
             }}>
-              Imprint
+              Trinetra
             </span>
           </div>
 
@@ -533,7 +533,7 @@ export default function LandingPage() {
                 fontSize: 17, color: 'var(--text2)', lineHeight: 1.78,
                 maxWidth: 500, fontWeight: 400,
               }}>
-                Imprint continuously authenticates every banking session through
+                Trinetra continuously authenticates every banking session through
                 behavioral biometrics — invisible to legitimate users, impossible
                 for impostors to fake. Protection doesn&apos;t end at login.
                 It never stops.
@@ -570,7 +570,7 @@ export default function LandingPage() {
                 letterSpacing: '-0.01em',
                 boxShadow: '0 1px 3px rgba(15,18,41,0.06)',
               }}>
-                Imprint Console
+                Trinetra Console
               </Link>
             </div>
 
@@ -724,7 +724,7 @@ export default function LandingPage() {
               Three steps. Zero friction.
             </h2>
             <p style={{ fontSize: 17, color: 'var(--text2)', maxWidth: 520, margin: '0 auto' }}>
-              Imprint works entirely in the background — users never know it&apos;s there unless something is wrong.
+              Trinetra works entirely in the background — users never know it&apos;s there unless something is wrong.
             </p>
           </div>
 
@@ -733,7 +733,7 @@ export default function LandingPage() {
               {
                 step: '01',
                 title: 'Observe',
-                desc: 'The moment a user logs in, Imprint begins capturing behavioral signals — keystroke timing, navigation rhythm, mouse dynamics — silently in the background.',
+                desc: 'The moment a user logs in, Trinetra begins capturing behavioral signals — keystroke timing, navigation rhythm, mouse dynamics — silently in the background.',
                 detail: 'Enrollment window: 90 seconds',
                 color: '#4361EE',
                 bg: '#EEF2FF',
@@ -749,7 +749,7 @@ export default function LandingPage() {
               {
                 step: '03',
                 title: 'Protect',
-                desc: 'Every 5 seconds, current behavior is scored against the profile. Deviations trigger graduated responses — from silent monitoring to full re-authentication.',
+                desc: 'Every 10 seconds, current behavior is scored against the profile. Deviations trigger graduated responses — from silent monitoring to full re-authentication.',
                 detail: 'Detection time: under 45 seconds',
                 color: '#047857',
                 bg: '#ECFDF5',
@@ -817,7 +817,7 @@ export default function LandingPage() {
               fontSize: 48, fontWeight: 700, color: 'var(--primary)',
               letterSpacing: '-0.03em', maxWidth: 560,
             }}>
-              What Imprint measures
+              What Trinetra measures
             </h2>
           </div>
 
@@ -989,7 +989,7 @@ export default function LandingPage() {
                 Only how you type.
               </h2>
               <p style={{ fontSize: 16, color: 'var(--text2)', lineHeight: 1.75, marginBottom: 32 }}>
-                Raw keystroke content is discarded immediately. Imprint stores only
+                Raw keystroke content is discarded immediately. Trinetra stores only
                 statistical summaries — mean and standard deviation of timing patterns.
                 52 bytes per user. Fully DPDPA 2023 compliant. Users can request
                 deletion at any time.
@@ -1113,7 +1113,7 @@ export default function LandingPage() {
             lineHeight: 1.75, marginBottom: 48,
           }}>
             Sign in to the banking app. Type normally to build your profile.
-            Then pass the keyboard to someone else — Imprint will detect the
+            Then pass the keyboard to someone else — Trinetra will detect the
             behavioral shift within seconds.
           </p>
 
@@ -1163,7 +1163,7 @@ export default function LandingPage() {
               fontSize: 18, fontWeight: 700, color: '#fff',
               letterSpacing: '-0.02em',
             }}>
-              Imprint
+              Trinetra
             </span>
           </div>
 
@@ -1180,7 +1180,7 @@ export default function LandingPage() {
           </div>
 
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-            Craftathon 2026 · Gandhinagar University · Built with Imprint Auth
+            Craftathon 2026 · Gandhinagar University · Built with Trinetra
           </p>
         </div>
       </footer>

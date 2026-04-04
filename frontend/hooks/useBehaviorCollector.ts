@@ -2,6 +2,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useSessionStore, Signal } from '@/lib/store'
 import { sendEvents } from '@/lib/api'
+import { isSessionNotFoundError, recreateImprintSession } from '@/lib/imprintRecover'
 
 interface KeyEvt   { type: string; key: string; timestamp: number }
 interface MouseEvt { x: number; y: number; timestamp: number }
@@ -141,6 +142,7 @@ export function useBehaviorCollector() {
   const lastMouseTime   = useRef(0)
   const lastTouchTime   = useRef(0)
   const baselineRef     = useRef<Record<string, number> | null>(null)
+  const recoveringRef   = useRef(false)
 
   const flush = useCallback(async () => {
     if (!sessionId) return
@@ -215,13 +217,46 @@ export function useBehaviorCollector() {
         setOverlay(true, result.explanation)
       }
 
-      console.log(
-        `[Imprint] W${windowIdRef.current} | ` +
-        `Score:${result.score} | ${result.state} | ${result.phase} | ` +
-        `ks:${ks.length} mouse:${ms.length} touch:${ts.length}`
-      )
+      console.log('[Trinetra POST /session/events]', {
+        window_id: windowIdRef.current,
+        sent: {
+          keystrokes: ks.length,
+          mouse: combinedMouse.length,
+          navigation: ns.length,
+          touch_raw: ts.length,
+        },
+        received: {
+          score: result.score,
+          state: result.state,
+          phase: result.phase,
+          window_count: result.window_count,
+          enrollment_progress: result.enrollment_progress,
+          cohort_id: result.cohort_id,
+          action: result.action,
+          tier_scores: result.tier_scores ?? null,
+        },
+      })
     } catch (e) {
-      console.error('[Imprint] Send failed:', e)
+      if (isSessionNotFoundError(e)) {
+        if (recoveringRef.current) return
+        recoveringRef.current = true
+        try {
+          const ok = await recreateImprintSession()
+          if (ok) {
+            windowIdRef.current = 0
+            baselineRef.current = null
+            console.info('[Trinetra] Stale session (e.g. server restart); recreated.')
+          } else {
+            console.error(
+              '[Trinetra] Session not found and recovery failed; sign in again.'
+            )
+          }
+        } finally {
+          recoveringRef.current = false
+        }
+        return
+      }
+      console.error('[Trinetra] Send failed:', e)
     }
   }, [sessionId, updateScore, setOverlay, updateSignals])
 
@@ -295,7 +330,7 @@ export function useBehaviorCollector() {
     document.addEventListener('touchstart', onTouchStart, { passive: true })
     document.addEventListener('touchend',   onTouchEnd,   { passive: true })
 
-    const interval = setInterval(flush, 5_000)
+    const interval = setInterval(flush, 10_000)
 
     return () => {
       document.removeEventListener('keydown',    onKeyDown)

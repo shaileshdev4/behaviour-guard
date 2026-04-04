@@ -45,6 +45,8 @@ class BehavioralProfile(Base):
     known_device_hashes: Mapped[Any] = mapped_column(
         JSONB, nullable=False, default=list
     )
+    # Last N active-phase feature vectors for cross-session retraining (capped in app)
+    recent_vectors: Mapped[Any] = mapped_column(JSONB, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -1,158 +1,141 @@
 'use client'
+import { useState } from 'react'
 import { useSessionStore } from '@/lib/store'
+import { injectImpostorEvents } from '@/lib/api'
 
-export default function FeatureDeviationChart() {
-  const { signals, state } = useSessionStore()
+const C = {
+  surface: '#0F1729',
+  border: '#1C2A45',
+  text: '#E8EEFF',
+  text2: '#6B80A0',
+  text3: '#374B6A',
+}
 
-  const signalsWithBoth = signals.filter(s => s.value !== null && s.baseline !== null)
-  if (signalsWithBoth.length === 0) return null
+type Props = {
+  /** When set (e.g. from security console session list), impostor events target this session. */
+  adminSessionId?: string | null
+}
 
-  const getDeviation = (s: typeof signals[0]) => {
-    if (s.value === null || s.baseline === null || s.baseline === 0) return 0
-    return ((s.value - s.baseline) / s.baseline) * 100
+export default function DemoControlPanel({ adminSessionId = null }: Props) {
+  const storeSessionId = useSessionStore((s) => s.sessionId)
+  const updateScore = useSessionStore((s) => s.updateScore)
+  const setOverlay = useSessionStore((s) => s.setOverlay)
+
+  const sid = adminSessionId || storeSessionId
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleImpostor = async () => {
+    if (!sid) {
+      setErr('No session — log in to banking or pick a session above.')
+      return
+    }
+    setErr(null)
+    setBusy(true)
+    try {
+      const r = await injectImpostorEvents(sid)
+      updateScore({
+        score: r.score,
+        state: r.state,
+        phase: r.phase,
+        enrollmentProgress: r.enrollment_progress,
+        windowCount: r.window_count,
+        action: r.action,
+        cohortId: r.cohort_id ?? undefined,
+        tierScores: r.tier_scores
+          ? {
+              population: r.tier_scores.population,
+              cohort: r.tier_scores.cohort,
+              individual: r.tier_scores.individual,
+              trust_day: r.tier_scores.trust_day,
+              cohort_id: r.tier_scores.cohort_id,
+            }
+          : undefined,
+      })
+      if (r.state === 'red' && r.explanation) {
+        setOverlay(true, r.explanation)
+      }
+      console.log('[Trinetra POST /session/events impostor]', {
+        window_id: 999,
+        sent: { keystrokes: 'synthetic slow', mouse: 0, navigation: 0 },
+        received: {
+          score: r.score,
+          state: r.state,
+          phase: r.phase,
+          window_count: r.window_count,
+          enrollment_progress: r.enrollment_progress,
+          tier_scores: r.tier_scores ?? null,
+        },
+      })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const maxDev = Math.max(...signalsWithBoth.map(s => Math.abs(getDeviation(s))), 20)
-
-  const stateColors = {
-    green:  { accent: '#047857', bg: '#ECFDF5', border: '#A7F3D0' },
-    yellow: { accent: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-    red:    { accent: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-  }[state] ?? { accent: '#4361EE', bg: '#EEF2FF', border: '#C7D2FE' }
-
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 16,
-      border: '1px solid var(--border)',
-      overflow: 'hidden',
-      boxShadow: '0 2px 8px rgba(15,18,41,0.05)',
-    }}>
-      <div style={{
-        padding: '14px 18px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
-          Feature Deviation from Baseline
-        </span>
-        <div style={{
-          padding: '3px 10px', borderRadius: 10,
-          background: stateColors.bg, border: `1px solid ${stateColors.border}`,
-        }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, color: stateColors.accent,
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            {state.toUpperCase()}
-          </span>
-        </div>
-      </div>
-
-      <div style={{ padding: '16px 20px' }}>
-        {/* Zero line label */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', marginBottom: 12,
-        }}>
-          <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
-            -{Math.round(maxDev)}%
-          </span>
-          <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
-            Baseline
-          </span>
-          <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
-            +{Math.round(maxDev)}%
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {signalsWithBoth.map((sig) => {
-            const dev = getDeviation(sig)
-            const devPct = (dev / maxDev) * 50  // max 50% from center
-            const isPositive = dev >= 0
-            const absDevPct = Math.abs(devPct)
-            const isAnomaly = Math.abs(dev) > 30
-
-            return (
-              <div key={sig.key}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  marginBottom: 5,
-                }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)' }}>
-                    {sig.label}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      fontSize: 11, fontFamily: 'var(--font-mono)',
-                      color: 'var(--text3)',
-                    }}>
-                      {sig.baseline?.toFixed(0)}{sig.unit}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--text3)' }}>→</span>
-                    <span style={{
-                      fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700,
-                      color: isAnomaly ? stateColors.accent : 'var(--text)',
-                    }}>
-                      {sig.value?.toFixed(0)}{sig.unit}
-                    </span>
-                    <span style={{
-                      fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
-                      color: isAnomaly ? stateColors.accent : 'var(--green)',
-                    }}>
-                      ({dev > 0 ? '+' : ''}{dev.toFixed(0)}%)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Centered bar */}
-                <div style={{ position: 'relative', height: 8 }}>
-                  {/* Track */}
-                  <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'var(--surface2)',
-                    borderRadius: 4,
-                    border: '1px solid var(--border)',
-                  }} />
-
-                  {/* Center line */}
-                  <div style={{
-                    position: 'absolute', top: 0, bottom: 0,
-                    left: '50%', width: 1,
-                    background: 'var(--border2)',
-                  }} />
-
-                  {/* Deviation bar */}
-                  <div style={{
-                    position: 'absolute', top: 1, bottom: 1,
-                    borderRadius: 3,
-                    left: isPositive ? '50%' : `${50 - absDevPct}%`,
-                    width: `${absDevPct}%`,
-                    background: isAnomaly
-                      ? `linear-gradient(${isPositive ? '90deg' : '270deg'}, ${stateColors.accent}, ${stateColors.accent}88)`
-                      : `linear-gradient(${isPositive ? '90deg' : '270deg'}, #047857, #04785788)`,
-                    transition: 'all 0.5s ease',
-                  }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Threshold reference */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginTop: 16,
-          padding: '8px 12px', borderRadius: 8,
-          background: 'var(--surface2)', border: '1px solid var(--border)',
-        }}>
-          <div style={{ width: 20, height: 2, background: '#94A3B8', borderRadius: 1 }} />
-          <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 500 }}>
-            Bars represent deviation from your enrolled baseline.
-            Deviation above ±30% triggers elevated monitoring.
-          </span>
-        </div>
-      </div>
+    <div
+      style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 8,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: C.text3,
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          marginBottom: 10,
+        }}
+      >
+        Demo controls
+      </p>
+      <p style={{ fontSize: 11, color: C.text2, lineHeight: 1.5, marginBottom: 12 }}>
+        Sends one batch of slow keystrokes through the same <code style={{ color: C.text }}>/session/events</code>{' '}
+        pipeline. Usually pushes score toward RED within 1–2 windows after EMA.
+      </p>
+      <button
+        type="button"
+        onClick={handleImpostor}
+        disabled={busy}
+        style={{
+          width: '100%',
+          padding: '10px 14px',
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#fff',
+          background: busy ? '#4B5563' : '#B91C1C',
+          border: 'none',
+          cursor: busy ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {busy ? 'Sending…' : 'Simulate Impostor'}
+      </button>
+      {err && (
+        <p style={{ fontSize: 11, color: '#FCA5A5', marginTop: 10, lineHeight: 1.4 }}>
+          {err}
+        </p>
+      )}
+      {sid && (
+        <p
+          style={{
+            fontSize: 9,
+            color: C.text3,
+            marginTop: 10,
+            fontFamily: 'monospace',
+            wordBreak: 'break-all',
+          }}
+        >
+          Target: {sid.slice(0, 8)}…
+        </p>
+      )}
     </div>
   )
 }

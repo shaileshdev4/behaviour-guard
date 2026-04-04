@@ -122,7 +122,7 @@ def delete_behavioral_profile(authorization: Optional[str] = Header(None)):
             "device_hashes_cleared": True,
             "message": (
                 "Your behavioral profile and all device fingerprints have been "
-                "permanently deleted. Imprint will rebuild from scratch on your next session."
+                "permanently deleted. Trinetra will rebuild from scratch on your next session."
             ),
         }
     except HTTPException:

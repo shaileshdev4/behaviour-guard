@@ -11,7 +11,7 @@ const NOTICE_UI: Record<
     border: '#FDE68A',
     color: '#92400E',
     title: 'Unrecognised device',
-    body: 'Imprint did not match this browser to your saved devices. Behavioural checks are stricter for this session (including a higher risk multiplier). If this is you, complete your session as usual; the device can be trusted after enrollment or from your next sign-in.',
+    body: 'Trinetra did not match this browser to your saved devices. Behavioural checks are stricter for this session (including a higher risk multiplier). If this is you, complete your session as usual; the device can be trusted after enrollment or from your next sign-in.',
   },
   recognized_device: {
     bg: '#ECFDF5',
@@ -32,7 +32,7 @@ const NOTICE_UI: Record<
     border: '#E5E7EB',
     color: '#374151',
     title: 'Device fingerprint is off',
-    body: 'No device hash is being sent to the server, so Imprint cannot recognise this browser. Turn it on under',
+    body: 'No device hash is being sent to the server, so Trinetra cannot recognise this browser. Turn it on under',
   },
 }
 
